@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <nav class="tree-nav" role="tree">
+                    <div class="tree-item " >
+                        <a href="index.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter1.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 1｜范围与需求（Scope & Requirements）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter2.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter3.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 3｜系统总体架构 (System Architecture)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter4.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter5.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter6.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 6｜RAG 检索与知识系统设计（RAG & Knowledge System）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter7.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 7｜多模态感知输入设计 (Multimodal Perception Input)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter8.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 8｜车控 ToolCall 设计 (Vehicle Control Tools)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item active" >
+                        <a href="chapter9.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter10.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 10｜安全、隐私与合规 (Safety, Privacy & Compliance)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter11.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 11｜性能、实时性与降级策略 (Performance, Latency & Fallback)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter12.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 12｜可观测性、评测与持续迭代 (Observability, Evals & Iteration)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter13.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 13｜部署与运维（Deployment & Operations）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter14.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 14｜测试计划与验收标准（Test & Acceptance）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter15.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 15｜附录（Appendix）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="CLAUDE.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Untitled</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-9gui-agent-app">Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</h1>
+<h2 id="91">9.1 开篇与目标</h2>
+<p>在智能座舱生态中，应用的增长速度远超 API 接口的标准化速度。车企无法与成千上万个 App（外卖、停车、充电、票务）逐一对接后端 API。<strong>GUI Agent（图形界面智能体）</strong> 旨在解决这一痛点：它赋予语音助手像人类一样“看懂屏幕”并“操作屏幕”的能力，从而实现对任意安卓 App 的零接口控制。</p>
+<p>本章重点设计一个基于 <strong>OpenAI Realtime API (多模态理解)</strong> 和 <strong>Agents SDK (任务编排)</strong> 的自动化系统，实现从语音指令到 App UI 操作的闭环。</p>
+<p><strong>本章学习目标：</strong></p>
+<ol>
+<li><strong>架构设计</strong>：掌握感知（Perception）、规划（Planning）、执行（Action）三层解耦架构。</li>
+<li><strong>混合感知</strong>：深度理解 UI 树（Accessibility Tree）与视觉（Vision）的融合策略（SoM）。</li>
+<li><strong>鲁棒性工程</strong>：设计针对 App 弹窗、加载慢、布局漂移的自动恢复机制。</li>
+<li><strong>安全人机协同</strong>：界定 AI 操作与人类接管的边界（尤其是支付与驾驶安全）。</li>
+</ol>
+<hr />
+<h2 id="92-system-architecture">9.2 系统核心架构 (System Architecture)</h2>
+<p>GUI Agent 并非简单的脚本录制，而是一个具备动态推理能力的智能系统。它运行在车机 Android 系统之上，作为一个特权服务存在。</p>
+<h3 id="921">9.2.1 逻辑架构图</h3>
+<div class="codehilite"><pre><span></span><code><span class="nb">+-----------------------------------------------------------------------+</span>
+<span class="c">|                       Agent Orchestrator (Cloud/Edge)                 |</span>
+<span class="c">|   (OpenAI Agents SDK: State Management</span><span class="nt">,</span><span class="c"> History</span><span class="nt">,</span><span class="c"> Reasoning)           |</span>
+<span class="nb">+-----------------------------------------------------------------------+</span>
+<span class="c">        ^                       | (Plan: &quot;Open Starbucks </span><span class="nb">-</span><span class="nv">&gt;</span><span class="c"> Click Buy&quot;)</span>
+<span class="c">        | (Observation)         v</span>
+<span class="nb">+-------+-------+</span><span class="c">       </span><span class="nb">+-------+-------+</span><span class="c">       </span><span class="nb">+-------+-------+</span>
+<span class="c">|  Perception   |       |   Reasoning   |       |   Executor    |</span>
+<span class="c">|   (The Eye)   |       |  (The Brain)  |       |  (The Hand)   |</span>
+<span class="nb">+-------+-------+</span><span class="c">       </span><span class="nb">+-------+-------+</span><span class="c">       </span><span class="nb">+-------+-------+</span>
+<span class="c">        ^                       ^                       |</span>
+<span class="c">        | Raw Data              | Decision              | Actions</span>
+<span class="c">        |                       v                       v</span>
+<span class="nb">+-------+-----------------------+-----------------------+-------+</span>
+<span class="c">|                 Vehicle Android OS Framework                  |</span>
+<span class="nb">+---------------------------------------------------------------+</span>
+<span class="c">|  AccessibilityService  |  InputManager  |  ActivityManager    |</span>
+<span class="c">|  (UI Tree / Events)    |  (Inject Event)|  (Package State)    |</span>
+<span class="nb">+------------------------+----------------+---------------------+</span>
+<span class="c">|        Target App (e</span><span class="nt">.</span><span class="c">g</span><span class="nt">.,</span><span class="c"> Meituan</span><span class="nt">,</span><span class="c"> Starbucks</span><span class="nt">,</span><span class="c"> Maps)            |</span>
+<span class="nb">+---------------------------------------------------------------+</span>
+</code></pre></div>
+
+<h3 id="922">9.2.2 核心组件职责</h3>
+<ol>
+<li>
+<p><strong>Perception Module (感知模组)</strong></p>
+<ul>
+<li><strong>UI Dump</strong>: 通过 <code>AccessibilityInteractionController</code> 获取当前窗口的 UI 节点树（XML/JSON）。</li>
+<li><strong>Screen Cap</strong>: 获取当前帧的像素截图（Bitmap）。</li>
+<li><strong>Pre-processor</strong>: 执行敏感信息遮盖（Masking）、UI 树精简（去除无效节点）、视觉标记（Set-of-Mark）。</li>
+</ul>
+</li>
+<li>
+<p><strong>Reasoning Engine (推理引擎 - LLM)</strong></p>
+<ul>
+<li>基于当前的 Observation（截图 + UI 树）和 Memory（用户刚才说的话），生成下一步的 <strong>ToolCall</strong>。</li>
+<li>负责处理“找不到元素”、“页面加载中”等逻辑分支。</li>
+</ul>
+</li>
+<li>
+<p><strong>Action Executor (执行器)</strong></p>
+<ul>
+<li>将语义化的 ToolCall（如 <code>tap(element_id="btn_submit")</code>）转换为底层的 Android 输入事件（<code>MotionEvent</code>）。</li>
+<li>负责坐标映射、手势模拟（Swipe/Scroll）和文本输入（IME）。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="93-hybrid-perception">9.3 混合感知策略 (Hybrid Perception)</h2>
+<p>单纯依赖视觉会面临高延迟和幻觉问题，单纯依赖 UI 树会面临 WebView/游戏引擎无法解析的问题。我们采用 <strong>"UI 树为主，视觉为辅"</strong> 的策略。</p>
+<h3 id="931-set-of-mark-som">9.3.1 Set-of-Mark (SoM) 增强技术</h3>
+<p>为了让大模型准确理解屏幕位置，我们不直接发送原始截图，而是先在截图上“画框”。</p>
+<p><strong>处理流程：</strong></p>
+<ol>
+<li><strong>提取</strong>：从 UI 树中过滤出所有 <code>clickable=true</code> 或 <code>focusable=true</code> 的节点。</li>
+<li><strong>绘制</strong>：在截图上对应坐标绘制半透明 Bounding Box，并标注数字 ID（1, 2, 3...）。</li>
+<li><strong>Prompt</strong>：提示词中不再问“点击什么按钮”，而是问“点击哪个 ID”。</li>
+</ol>
+<p><strong>优势</strong>：</p>
+<ul>
+<li><strong>Token 压缩</strong>：不需要模型去猜测坐标，只需输出 ID。</li>
+<li><strong>抗幻觉</strong>：如果 ID 不存在，模型无法输出，避免了点击空白区域。</li>
+</ul>
+<h3 id="932-fallback-strategy">9.3.2 感知降级与回退 (Fallback Strategy)</h3>
+<p>| 场景 | UI 树状态 | 视觉状态 | 策略 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">UI 树状态</th>
+<th style="text-align: left;">视觉状态</th>
+<th style="text-align: left;">策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>原生 App</strong></td>
+<td style="text-align: left;">完整可用</td>
+<td style="text-align: left;">辅助校验</td>
+<td style="text-align: left;"><strong>优先使用 UI 树</strong>。直接通过 ID 或 Text 查找控件，速度最快</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Webview/H5</strong></td>
+<td style="text-align: left;">仅有容器节点</td>
+<td style="text-align: left;">内容丰富</td>
+<td style="text-align: left;"><strong>切换为纯视觉模式</strong>。OCR 识别文字 + 图像理解图标，估算相对坐标。</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>游戏/地图</strong></td>
+<td style="text-align: left;">空白或乱码</td>
+<td style="text-align: left;">内容丰富</td>
+<td style="text-align: left;"><strong>纯视觉模式</strong>。依赖图像识别。</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>黑屏/加载</strong></td>
+<td style="text-align: left;">包含 Loading</td>
+<td style="text-align: left;">包含 Loading</td>
+<td style="text-align: left;"><strong>等待模式</strong>。暂停 1-2秒，重试感知，不消耗 LLM 推理次数。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="94">9.4 任务编排与对话设计</h2>
+<h3 id="941-slot-filling">9.4.1 显式规划与槽位填充 (Slot Filling)</h3>
+<p>GUI 操作极其昂贵（时间长、屏幕闪烁）。<strong>Rule-of-Thumb</strong>：绝对不要在 App 里一边问一边点。</p>
+<p><strong>错误示范（交互太碎）：</strong></p>
+<blockquote>
+<p>User: "点杯咖啡" -&gt; Agent 打开 App -&gt; Agent: "哪家？" -&gt; User: "星巴克" -&gt; Agent 搜星巴克 -&gt; Agent: "喝啥？" ...</p>
+</blockquote>
+<p><strong>正确设计（One-Shot Execution）：</strong></p>
+<ol>
+<li><strong>Voice Interaction Layer</strong>: 在对话层先将意图参数补齐。<ul>
+<li>Agent: "好的，点咖啡。请问是星巴克还是瑞幸？要送到现在的定位吗？"</li>
+<li>User: "星克，冰美式，送到公司。"</li>
+</ul>
+</li>
+<li><strong>Planning Layer</strong>: 生成完整任务链。<ul>
+<li><code>Goal: Order "Iced Americano" from "Starbucks", Address="Office"</code></li>
+</ul>
+</li>
+<li><strong>Execution Layer</strong>: Agent 沉默执行，只在关键节点播报。</li>
+</ol>
+<h3 id="942">9.4.2 运行时的用户反馈</h3>
+<p>在长达 10-30 秒的操作中，用户需要知道 Agent 是“死机了”还是“在思考”。</p>
+<ul>
+<li><strong>UI 覆盖层 (Overlay)</strong>: 在屏幕上方显示一个浮动的 Agent 状态条。<ul>
+<li>状态：<code>正在搜索店铺...</code> -&gt; <code>正在选购商品...</code> -&gt; <code>准备结算...</code></li>
+</ul>
+</li>
+<li><strong>语音伴随 (Voice Check-in)</strong>:<ul>
+<li>每执行 3-4 个动作，或遇到耗时加载时，通过 Realtime API 插入一句短语：“正在打开菜单，稍等”、“网速有点慢，正在加载”。</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2 id="95-action-space">9.5 动作空间与执行器设计 (Action Space)</h2>
+<p>执行器不仅是点击，还需要处理复杂的交互逻辑。</p>
+<h3 id="951-tool">9.5.1 定义 Tool 接口</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 定义给 LLM 调用的工具集</span>
+<span class="kr">type</span><span class="w"> </span><span class="nx">GUI_Tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// 基础操作</span>
+<span class="w">  </span><span class="nx">tap</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">element_id?</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">,</span><span class="w"> </span><span class="nx">x?</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">,</span><span class="w"> </span><span class="nx">y?</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">,</span><span class="w"> </span><span class="nx">description?</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">scroll</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">direction</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;up&quot;</span><span class="o">|</span><span class="s2">&quot;down&quot;</span><span class="o">|</span><span class="s2">&quot;left&quot;</span><span class="o">|</span><span class="s2">&quot;right&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">distance</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;screen&quot;</span><span class="o">|</span><span class="s2">&quot;half&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">type_text</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">text</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">clear_first</span><span class="o">:</span><span class="w"> </span><span class="kt">boolean</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// 导航操作</span>
+<span class="w">  </span><span class="nx">go_back</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">go_home</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// 流程控制</span>
+<span class="w">  </span><span class="nx">wait</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">,</span><span class="w"> </span><span class="nx">reason</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span><span class="w"> </span><span class="c1">// 显式等待加载</span>
+<span class="w">  </span><span class="nx">finish_task</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">outcome</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span><span class="w"> </span><span class="c1">// 任务完成，交还控制权</span>
+<span class="w">  </span><span class="nx">ask_user</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">question</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">Result</span><span class="p">;</span><span class="w"> </span><span class="c1">// 遇到无法决断的问题</span>
+<span class="p">};</span>
+</code></pre></div>
+
+<h3 id="952">9.5.2 复杂动作的原子化</h3>
+<ul>
+<li><strong>滑动查找 (Scroll-to-find)</strong>:<ul>
+<li>LLM 往往不能直接看到屏幕下方的元素。</li>
+<li>设计一个复合动作 <code>find_text_and_tap(text)</code>：执行器内部自动循环 <code>[检测 -&gt; 未找到 -&gt; 滑动 -&gt; 检测]</code>，直到找到目标或超时，无需 LLM 参与每一帧的决策。</li>
+</ul>
+</li>
+<li><strong>输入法处理</strong>:<ul>
+<li>不要模拟点击键盘上的字母（容易出错）。</li>
+<li>直接调用 Android <code>Instrumentation.sendStringSync</code> 或通过 ADB 注入文本事件，绕过软键盘 UI。</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2 id="96-robustness">9.6 鲁棒性与异常恢复 (Robustness)</h2>
+<p>GUI 自动化最大的挑战是环境的不确定性（AB 实验、广告弹窗、版本更新）。</p>
+<h3 id="961">9.6.1 常见异常模式与对策</h3>
+<ol>
+<li><strong>幽灵弹窗 (Pop-ups)</strong>:<ul>
+<li><em>现象</em>：刚要点击“下单”，突然弹出一个“领红包”遮住了按钮。</li>
+<li><em>对策</em>：<strong>视觉验证</strong>。每次点击前，检查目标区域是否有 Z-index 更高的遮挡物。如果点击后页面未发生预期跳转（通过 UI 树 Hash 或截图相似度判断），判定为被拦截，触发“寻找关闭按钮”子任务。</li>
+</ul>
+</li>
+<li><strong>元素ID变更</strong>:<ul>
+<li><em>现象</em>：App 更新后，<code>resource-id</code> 变了。</li>
+<li><em>对策</em>：<strong>语义定位</strong>。优先使用 <code>text</code> 内容（如 "去结算"）或 <code>content-desc</code> 进行定位，而不是死板的 ID 或坐标。</li>
+</ul>
+</li>
+<li><strong>无限加载 (Spinner)</strong>:<ul>
+<li><em>现象</em>：网络差，转圈超过 10 秒。</li>
+<li><em>对策</em>：设置<strong>超时熔断</strong>。如果页面 UI 树在 5 秒内只有 Loading 节点，Agent 语音播报：“网络信号不佳，请稍后再试”，并主动终止任务。</li>
+</ul>
+</li>
+</ol>
+<h3 id="962-self-correction-loop">9.6.2 自我反思循环 (Self-Correction Loop)</h3>
+<p>利用 Agents SDK 的循环特性，在每次 Action 后加入 Observation 检查：</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># 伪代码逻辑</span>
+<span class="k">while</span> <span class="ow">not</span> <span class="n">task_done</span><span class="p">:</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">get_screen_state</span><span class="p">()</span>
+    <span class="n">plan</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">think</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">goal</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">plan</span><span class="o">.</span><span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;tap(checkout)&quot;</span><span class="p">:</span>
+        <span class="n">execute</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+        <span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+
+        <span class="c1"># 校验步：有没有进入下一个页面？</span>
+        <span class="n">new_obs</span> <span class="o">=</span> <span class="n">get_screen_state</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">is_same_page</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">new_obs</span><span class="p">):</span>
+            <span class="c1"># 没变，说明点击失败或卡顿</span>
+            <span class="n">agent</span><span class="o">.</span><span class="n">memory</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;Attempted to tap checkout but screen didn&#39;t change. Is there a popup?&quot;</span><span class="p">)</span>
+            <span class="k">continue</span> <span class="c1"># 重新思考</span>
+</code></pre></div>
+
+<hr />
+<h2 id="97-safety-compliance">9.7 安全、隐私与合规 (Safety &amp; Compliance)</h2>
+<h3 id="971-the-payment-red-line">9.7.1 支付红线 (The Payment Red Line)</h3>
+<ul>
+<li><strong>原则</strong>：Agent <strong>严禁</strong>触碰任何支付密码键盘、指纹确认框或面容识别确认框。</li>
+<li><strong>实现</strong>：<ol>
+<li><strong>关键词检测</strong>：感知层检测到页面包含“请输入密码”、“指纹支付”、“FaceID”等字样。</li>
+<li><strong>强制中断</strong>：系统底层拦截 Agent 的点击信号。</li>
+<li><strong>交接</strong>：Agent 语音播报：“已帮您下好订单，请您亲自确认支付。”随后 Agent 退出前台，让用户接管。</li>
+</ol>
+</li>
+</ul>
+<h3 id="972-driver-distraction">9.7.2 驾驶分心管理 (Driver Distraction)</h3>
+<ul>
+<li><strong>行驶中策略 (Speed &gt; 0)</strong>:<ul>
+<li><strong>静默操作</strong>：Agent 在操作 App 时，将屏幕亮度压暗或显示遮罩（"AI 正在后台为您处理..."），避免界面快速跳转分散驾驶员注意力。</li>
+<li><strong>结果摘要</strong>：仅在最终确认页或结果页恢复显示。</li>
+</ul>
+</li>
+<li><strong>高危动作拦截</strong>:<ul>
+<li>DMS 检测到驾驶员长视线偏离（看屏幕 &gt; 2秒），立即暂停 GUI 自动化并语音提示：“请看路，操作已暂停。”</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2 id="98-performance">9.8 性能优化 (Performance)</h2>
+<p>目标：每一步操作延迟 &lt; 1.5秒。</p>
+<ol>
+<li><strong>截图压缩</strong>:<ul>
+<li>不要传原图（如 2K 屏）。下采样至 720p 或 1080p，转为灰度图（如果颜色不重要），压缩为 JPEG (Quality 70)。</li>
+</ul>
+</li>
+<li><strong>UI 树缓存与去噪</strong>:<ul>
+<li>过滤掉所有 <code>visible=false</code>、宽高为 0 或位于屏幕外的节点，减少 LLM 上下文长度。</li>
+</ul>
+</li>
+<li><strong>并行处理</strong>:<ul>
+<li>截图线程与 UI 树抓取线程并行执行，最后通过时间戳对齐。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="99">9.9 本章小结</h2>
+<ul>
+<li><strong>架构</strong>：GUI Agent 是连接语音与封闭 App 生态的桥梁，采用“感知-规划-执行”闭环。</li>
+<li><strong>核心技术</strong>：SoM（标记集）技术解决了大模型“看不准”坐标的问题；混合感知解决了 UI 树缺失的问题。</li>
+<li><strong>体验设计</strong>：通过“槽位填充”减少交互轮数，通过“静默执行”减少驾驶干扰。</li>
+<li><strong>底线</strong>：支付环节必须人机解耦（Handoff），确保资金安全。</li>
+</ul>
+<hr />
+<h2 id="910">9.10 练习题</h2>
+<h3 id="_1">基础题</h3>
+<details>
+<summary><strong>Q1: 为什么在车载 GUI Agent 中，我们要对 UI 树（Accessibility Tree）进行预处理和精简？列举至少三个理由。</strong></summary>
+<blockquote>
+<p><strong>答案：</strong></p>
+<ol>
+<li><strong>降低 Token 消耗</strong>：原生 UI 树包含大量布局嵌套（FrameLayout, LinearLayout 等无意义容器），直接输入 LLM 会消耗大量 Token 并增加成本。</li>
+<li><strong>减少延迟</strong>：Context 越长，LLM 首字生成（TTFT）越慢。精简后的树能显著提升响应速度。</li>
+<li><strong>提高准确率</strong>：过多的噪声节点（如隐藏的菜单、背景图层）会干扰模型注意力，导致幻觉或选错元素。我们只关心 <code>clickable</code>, <code>text</code>, <code>content-desc</code> 等关键属性。</li>
+</ol>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q2: 解释什么是“SoM (Set-of-Mark)”技术，以及它是如何解决 GUI 点击精度问题的？</strong></summary>
+<blockquote>
+<p><strong>答案：</strong></p>
+<ul>
+<li><strong>定义</strong>：SoM 是一种视觉提示技术，它利用 UI 树的坐标信息，在发送给视觉模型的截图上预先绘制带编号的边框（Bounding Box）。</li>
+<li><strong>原理</strong>：它将回归问题”（预测 X,Y 连续坐标，难度大，易飘移）转化为“分类问题”（预测 ID 编号，难度小，准确率高）。模型只需要输出“点击 ID 5”，执行器再去查表找到 ID 5 的中心坐标进行点击。</li>
+</ul>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q3: 当 Agent 正在操作 App 时，用户突然打断说“算了，不需要了”，系统应如何响应？</strong></summary>
+<blockquote>
+<p><strong>答案：</strong></p>
+<ol>
+<li><strong>立即停止</strong>：Realtime API 接收到 <code>input_audio_buffer.speech_started</code> 事件，立即发送信号终止当前的 Agent 执行线程。</li>
+<li><strong>状态回滚（Best Effort）</strong>：如果可能，执行 <code>go_home()</code> 返回桌面，或者不进行任何操作保持现状。</li>
+<li><strong>确认反馈</strong>：语音回复“好的，已停止操作”。</li>
+<li><strong>避免副作用</strong>：确保不会因为延迟而执行之前排队的“点击下单”指令（需要清空 Action Queue）。</li>
+</ol>
+</blockquote>
+</details>
+<h3 id="_2">挑战题</h3>
+<details>
+<summary><strong>Q4: 场景设计：用户说“帮我这个订单分享给微信好友”。GUI Agent 需要跨两个 App（外卖 App -&gt; 微信）操作。请设计这一流程，并指出最大的技术难点。</strong></summary>
+<blockquote>
+<p><strong>答案：</strong></p>
+<ul>
+<li><strong>流程</strong>：<ol>
+<li>在外卖 App 点击“分享”按钮。</li>
+<li>系统弹出的 ShareSheet（系统级或应用级）中找到“微信”图标并点击。</li>
+<li><strong>难点跳转</strong>：此时前台应用切换为微信。Agent 需要感知到包名变更为 <code>com.tencent.mm</code>。</li>
+<li>在微信“最近聊天”列表中寻找目标好友，或点击“创建新聊天”。</li>
+<li>点击“发送”。</li>
+</ol>
+</li>
+<li><strong>最大技术难点</strong>：<ul>
+<li><strong>上下文丢失</strong>：跨 App 跳转时，UI 风格突变，Agent 需要快速适应新环境。</li>
+<li><strong>隐私界限</strong>：进入微信后，屏幕上全是私人聊天记录。Agent 必须严格执行隐私过滤（对非目标好友的头像/名字进行模糊处理），且只能操作用户指定的好友，不能随意浏览。</li>
+<li><strong>启动延迟</strong>：微信启动可能需要数秒，Agent 需要有智能等待机制。</li>
+</ul>
+</li>
+</ul>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q5: 针对“滑动查找”场景（例如在长列表中找‘麦当劳’），请设计一个具体的算法逻辑，确保 Agent 不会陷入死循环（上下反复滑）。</strong></summary>
+<blockquote>
+<p><strong>答案：</strong>
+<strong>算法逻辑：</strong></p>
+<ol>
+<li><strong>初始化</strong>：设置 <code>max_swipes = 5</code>，<code>visited_content_hashes = Set()</code>。</li>
+<li><strong>循环</strong>：
+   *   <strong>Step 1 检查</strong>：获取当前屏幕所有文本。如果包含“麦当劳”，返回坐标，结束。
+   *   <strong>Step 2 记录</strong>：计算当前屏幕内容的哈希值（或提取关键文本集合）。如果该哈希值已存在于 <code>visited_content_hashes</code>，说明到底了或者没滑倒，<strong>终止并报错</strong>（防止死循环）。加入哈希表。
+   *   <strong>Step 3 动作</strong>：执行 <code>swipe_up()</code>（内容上移，浏览下方）。
+   *   <strong>Step 4 计数</strong>：<code>swipes++</code>。如果 <code>swipes &gt; max_swipes</code>，语音播报“找不”，结束。</li>
+<li><strong>优化</strong>：如果列表很长，可以使用 OCR 辅助判断是否有 ScrollBar 到底的视觉特征。</li>
+</ol>
+</blockquote>
+</details>
+<hr />
+<h2 id="911-gotchas">9.11 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="1-coordinate-hell">1. 坐标系地狱 (Coordinate Hell)</h3>
+<ul>
+<li><strong>问题</strong>：UI 树返回的坐标是基于 App 窗口的（Window Coordinates），而 ADB <code>input tap</code> 需要的是屏幕绝对坐标（Screen Coordinates）。</li>
+<li><strong>陷阱</strong>：在分屏模式、画中画模式或有状态栏/导航栏的情况下，Y 轴往往有几十像素的偏差，导致点不准。</li>
+<li><strong>调试技巧</strong>：开启 Android 开发者选项中的 "Pointer Location"（指针位置），直观看到系统的点击位置与 Agent 意图位置的偏差，计算 Offset 进行补偿。</li>
+</ul>
+<h3 id="2-ime-obstruction">2. 软键盘遮挡 (IME Obstruction)</h3>
+<ul>
+<li><strong>问题</strong>：Agent 点击输入框后，软键盘弹出，遮住了原本位于底部的“确定”按钮。Agent 继续根据旧截图点击底部，结果点到了键盘上的某个键。</li>
+<li><strong>调试技巧</strong>：<ul>
+<li><strong>先收起</strong>输入完文本后，习惯性发送 <code>Back</code> 键或 <code>HideKeyboard</code> 指令。</li>
+<li><strong>使用 Action 键</strong>：直接发送 <code>Enter</code> / <code>Search</code> 的 KeyCode，触发表单提交，完全绕过点击按钮。</li>
+</ul>
+</li>
+</ul>
+<h3 id="3-dom-virtual-nodes">3. DOM 树不仅是树 (Virtual Nodes)</h3>
+<ul>
+<li><strong>问题</strong>：Flutter 或 Unity 应用（如车机版 Bilibili 游戏中心）通常只暴露一个大的 View，没有 Accessibility 节点。</li>
+<li><strong>陷阱</strong>：依赖 UI 树的 Agent 在这些 App 里完全“失明”。</li>
+<li><strong>调试技巧</strong>：必须实现<strong>自动降级</strong>机制。当检测到根节点下无子节点，但截图非黑屏时，强制切换到纯视觉（Vision-only）模式。</li>
+</ul>
+<h3 id="4">4. 动态广告的干扰</h3>
+<ul>
+<li><strong>问题</strong>：开屏广告倒计时、应用内浮层广告。</li>
+<li><strong>陷阱</strong>：Agent 试图点击广告上的“跳过”，但因为倒计时结束广告自动消失，导致点击穿透到了下层的内容，触发了意外操作。</li>
+<li><strong>调试技巧</strong>：在点击前进行二次 <code>Check</code>，或者设计更保守的等待策略（Wait for settle）。</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter8.html" class="nav-link prev">← Chapter 8｜车控 ToolCall 设计 (Vehicle Control Tools)</a><a href="chapter10.html" class="nav-link next">Chapter 10｜安全、隐私与合规 (Safety, Privacy & Compliance) →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

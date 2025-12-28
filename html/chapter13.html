@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 13｜部署与运维（Deployment & Operations）</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <nav class="tree-nav" role="tree">
+                    <div class="tree-item " >
+                        <a href="index.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter1.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 1｜范围与需求（Scope & Requirements）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter2.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter3.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 3｜系统总体架构 (System Architecture)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter4.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter5.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter6.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 6｜RAG 检索与知识系统设计（RAG & Knowledge System）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter7.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 7｜多模态感知输入设计 (Multimodal Perception Input)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter8.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 8｜车控 ToolCall 设计 (Vehicle Control Tools)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter9.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter10.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 10｜安全、隐私与合规 (Safety, Privacy & Compliance)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter11.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 11｜性能、实时性与降级策略 (Performance, Latency & Fallback)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter12.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 12｜可观测性、评测与持续迭代 (Observability, Evals & Iteration)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item active" >
+                        <a href="chapter13.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 13｜部署与运维（Deployment & Operations）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter14.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 14｜测试计划与验收标准（Test & Acceptance）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter15.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 15｜附录（Appendix）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="CLAUDE.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Untitled</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-13deployment-operations">Chapter 13｜部署与运维（Deployment &amp; Operations）</h1>
+<h2 id="131">13.1 开篇段落</h2>
+<p>车载 AI 系统的部署是一个极具挑战的工程领域，它处于<strong>高安全性要求（车规级）</strong>与<strong>极速迭代要求（AI 模型）</strong>的矛盾交汇点。本章将详细阐述如何构建一个既能满足车辆行驶安全标准，又能灵活适配 OpenAI Realtime API 和 Agents SDK 快速演进的混合架构。</p>
+<p>与传统的 Web 服务不同，车载部署必须面对：</p>
+<ol>
+<li><strong>不稳定的网络拓扑</strong>：车辆会在 5G、4G、2G 和无信号区域间穿梭。</li>
+<li><strong>异构的硬件环境</strong>：同一车系的高低配车型，其车机算力（CPU/NPU）和内存可能有倍数级差异。</li>
+<li><strong>不可逆的物理风险</strong>：错误的部署可能导致车辆功能异常。</li>
+</ol>
+<p><strong>本章习目标</strong>：</p>
+<ul>
+<li>掌握“车端-网关-模型端”的三层部署架构及其流量转发机制。</li>
+<li>实现基于临时凭证（Ephemeral Token）的零信任安全接入方案。</li>
+<li>设计细粒度的动态配置（Config Dispatch）系统，解耦 OTA 与 AI 迭代。</li>
+<li>建立全链路可观测性体系，精准定位“语音延迟”的物理归属。</li>
+</ul>
+<hr />
+<h2 id="132-deep-dive-architecture">13.2 部署架构详解 (Deep Dive Architecture)</h2>
+<h3 id="1321">13.2.1 三层拓扑结构</h3>
+<p>我们采用<strong>Tethered Architecture（系留架构）</strong>，即车机作为感知与执行的触手，云端作为大脑，中间通过高可用的网关连接。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">[ Layer 1: Vehicle Edge ]       [ Layer 2: Managed Gateway ]       [ Layer 3: Intelligence Provider ]</span>
+<span class="na">(Android/QNX/Linux)             (Cloud Cluster / K8s)              (OpenAI &amp; Vector DB)</span>
+
+<span class="na">+-----------------------+       +--------------------------+       +-------------------------+</span>
+<span class="na">|  Realtime Client SDK  |       |  A. Authentication       |       |                         |</span>
+<span class="na">| +-------------------+ | HTTPS |    - VIN Validation      | HTTPS |   OpenAI API Platform   |</span>
+<span class="na">| | Audio Buffer &amp;    | |&lt;-----&gt;|    - Token Issuance      |&lt;-----&gt;|   (Model Inference)     |</span>
+<span class="na">| | Codec (Opus/PCM)  | |       |                          |       |                         |</span>
+<span class="na">| +-------------------+ |       +--------------------------+       +-------------------------+</span>
+<span class="na">| +-------------------+ |       |  B. Traffic Proxy        |  WSS  |                         |</span>
+<span class="na">| | Function Registry | |  WSS  |    - Rate Limiting       |&lt;-----&gt;|   Realtime API Nodes    |</span>
+<span class="na">| | (Car Controls)    | |&lt;</span><span class="o">=</span><span class="s">====&gt;|    - PII Scrubbing (Txt) |       |   (GPT-4o-Realtime)     |</span>
+<span class="na">| +-------------------+ |       |    - Session Router      |       |                         |</span>
+<span class="na">| +-------------------+ |       +--------------------------+       +-------------------------+</span>
+<span class="na">| | Offline Fallback  | |                                          |                         |</span>
+<span class="na">| | (Local Command)   | |       +--------------------------+       |   RAG Knowledge Base    |</span>
+<span class="na">| +-------------------+ |       |  C. Agent Orchestrator   |&lt;-----&gt;|   (Pinecone / Milvus)   |</span>
+<span class="na">+-----------^-----------+       |    (Agents SDK Runtime)  |       |                         |</span>
+<span class="w">            </span><span class="na">|                   |    - State Machine       |       +-------------------------+</span>
+<span class="w">      </span><span class="na">Hardware Bus              |    - Tool Resolver       |</span>
+<span class="w">      </span><span class="na">(SOME/IP, DDS)            +--------------------------+</span>
+</code></pre></div>
+
+<h3 id="1322">13.2.2 组件职责细分</h3>
+<ol>
+<li>
+<p><strong>Layer 1 - 车端 (Vehicle Edge)</strong></p>
+<ul>
+<li><strong>音频栈</strong>：负责回声消除 (AEC)、噪声抑制 (NS) 和本地端点检测 (VAD)。<strong>Rule of Thumb</strong>：VAD 必须在车端做，只有检测到人声才推流，否则会浪费 90% 的 Token 费用在传输背景噪音上。</li>
+<li><strong>连接管理</strong>：维护 WebSocket/WebRTC 长连接，处理指数退避重连。</li>
+<li><strong>安全沙箱</strong>：存储车机身份证书（Client Certificate），并在可信执行环境（TEE/Keystore）中签名请求。</li>
+</ul>
+</li>
+<li>
+<p><strong>Layer 2 - 业务网关 (Managed Gateway)</strong></p>
+<ul>
+<li><strong>BFF (Backend for Frontend)</strong>：这是我们对自己基础设施的控制点。<strong>严禁车机直连 OpenAI</strong>。</li>
+<li><strong>会话中继 (Session Relaying)</strong>：代理 WebSocket 流量。在此层可以注入 System Message（例如注入当前的车辆型号、用户昵称），对车机屏蔽 Prompt 细节。</li>
+<li><strong>审计与清洗</strong>：记录所有 Tool Call 的参数；尝试识别并掩盖文本流中的敏感信息（Audio 流清洗较难，主要依赖合规协议）。</li>
+</ul>
+</li>
+<li>
+<p><strong>Layer 3 - 智能与知识层</strong></p>
+<ul>
+<li><strong>Agents Runtime</strong>：运行 Python/Node.js 编写的 Agents SDK 逻辑，处理复杂的任务编排。</li>
+<li><strong>RAG Service</strong>：提供毫秒级向量检索。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="133-security-identity">13.3 安全接入与凭证管理 (Security &amp; Identity)</h2>
+<p>车载安全的核心原则是：<strong>假设车机环境是不可信的，假设设备已被物理攻破。</strong></p>
+<h3 id="1331-the-handshake">13.3.1 临时会话凭证流程 (The Handshake)</h3>
+<p>我们不使用静态 Key，而是使用 OpenAI Realtime API 的 <code>Client Secret</code>（Ephemeral Token）模式。</p>
+<div class="codehilite"><pre><span></span><code><span class="k">Sequence</span><span class="w"> </span><span class="nl">Diagram</span><span class="p">:</span><span class="w"> </span><span class="n">Secure</span><span class="w"> </span><span class="k">Session</span><span class="w"> </span><span class="n">Establishment</span>
+
+<span class="n">Vehicle</span><span class="w"> </span><span class="p">(</span><span class="n">Client</span><span class="p">)</span><span class="w">          </span><span class="n">Gateway</span><span class="w"> </span><span class="p">(</span><span class="n">Server</span><span class="p">)</span><span class="w">            </span><span class="n">OpenAI</span><span class="w"> </span><span class="n">API</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="mf">1.</span><span class="w"> </span><span class="n">Auth</span><span class="w"> </span><span class="n">Request</span><span class="w"> </span><span class="p">(</span><span class="n">HTTPS</span><span class="p">)</span><span class="w"> </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="err">{</span><span class="n">VIN</span><span class="p">,</span><span class="w"> </span><span class="nc">Timestamp</span><span class="p">,</span><span class="w"> </span><span class="nf">Sign</span><span class="err">}</span><span class="w">  </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|------------------------&gt;|</span><span class="w">                        </span><span class="o">|</span>
+
+<span class="w">       </span><span class="o">|------------------------&gt;|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="mf">2.</span><span class="w"> </span><span class="n">Verify</span><span class="w"> </span><span class="n">Signature</span><span class="w">     </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">    </span><span class="o">&amp;</span><span class="w"> </span><span class="n">Subscription</span><span class="w">       </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w"> </span><span class="mf">3.</span><span class="w"> </span><span class="k">Create</span><span class="w"> </span><span class="k">Session</span><span class="w">      </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">    </span><span class="n">POST</span><span class="w"> </span><span class="o">/</span><span class="n">v1</span><span class="o">/</span><span class="n">realtime</span><span class="o">/</span><span class="n">sessions</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">    </span><span class="err">{</span><span class="n">model</span><span class="p">,</span><span class="w"> </span><span class="n">instructions</span><span class="err">}</span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|-----------------------&gt;|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w"> </span><span class="mf">4.</span><span class="w"> </span><span class="k">Returns</span><span class="w"> </span><span class="n">client_secret</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">    </span><span class="p">(</span><span class="n">ephemeral</span><span class="w"> </span><span class="n">token</span><span class="p">)</span><span class="w">   </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|&lt;-----------------------|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="mf">5.</span><span class="w"> </span><span class="k">Return</span><span class="w"> </span><span class="n">Token</span><span class="w">         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">    </span><span class="err">{</span><span class="n">token</span><span class="p">,</span><span class="w"> </span><span class="n">expiry</span><span class="err">}</span><span class="w">      </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|&lt;------------------------|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="mf">6.</span><span class="w"> </span><span class="k">Connect</span><span class="w"> </span><span class="p">(</span><span class="n">WSS</span><span class="p">)</span><span class="w">        </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">    </span><span class="k">Authorization</span><span class="err">:</span><span class="w">       </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">    </span><span class="n">Bearer</span><span class="w"> </span><span class="o">[</span><span class="n">token</span><span class="o">]</span><span class="w">       </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="w">       </span><span class="o">|=================================================&gt;|</span>
+<span class="w">       </span><span class="o">|</span><span class="w">        </span><span class="p">(</span><span class="n">Encrypted</span><span class="w"> </span><span class="n">Bidirectional</span><span class="w"> </span><span class="n">Stream</span><span class="p">)</span><span class="w">          </span><span class="o">|</span>
+</code></pre></div>
+
+<ul>
+<li><strong>步骤详解</strong>：<ol>
+<li>车机使用出厂烧录的私钥对请求签名，向 Gateway 发起认证。</li>
+<li>Gateway 确认该 VIN（车辆识别码）未欠费、未被列入黑名单。</li>
+<li>Gateway 代表车辆向 OpenAI 申请一个<strong>临时会话</strong>。此处 Gateway 可以配置该会话的默认 Prompt 和工具集。</li>
+<li>OpenAI 返回一个有效期极短（如 60秒用于建连）的 Token。</li>
+<li>车机拿到 Token，建立 WebSocket 连接。</li>
+</ol>
+</li>
+</ul>
+<h3 id="1332">13.3.2 敏感数据隔离</h3>
+<ul>
+<li><strong>支付隔离</strong>：涉及支付的 Tool（如 <code>pay_parking_fee</code>）不直接在 LLM 链路中完成扣款。LLM 仅负责生成“预支付订单号”，车机收到 Tool Call 后，拉起原生的安全支付收银台（Native UI），要求用户进行指纹或密码确认。</li>
+</ul>
+<hr />
+<h2 id="134-versioning-config">13.4 版本管理与动态配置 (Versioning &amp; Config)</h2>
+<p>车机 OTA（Over-The-Air）升级周期通常为 1-3 个月，而 AI 模型的 Prompt 优化可能每天都在发生。</p>
+<h3 id="1341-capability-matrix">13.4.1 动态能力矩阵 (Capability Matrix)</h3>
+<p>车机在每次启动或建连前，应拉取一份 JSON 配置文件。</p>
+<p><strong>Config Example:</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;config_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2025-12-01_v3&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;features&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;enable_realtime_api&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;enable_gui_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="c1">// 灰度关闭点餐功能</span>
+<span class="w">    </span><span class="nt">&quot;use_preview_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;tool_whitelist&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;set_temperature&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;play_music&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="c1">// &quot;open_sunroof&quot;  &lt;-- 此车型无天窗，配置中移除此工具</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;system_prompt_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v4.2.1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;timeouts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;server_processing&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5000</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;tool_execution&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3000</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<ul>
+<li><strong>Rule of Thumb</strong>：永远不要让模型去猜测车辆有哪些功能。通过 Prompt 或 Tool Definition 明确告诉模型“当前车辆具备的功能列表（Tools）”。如果车辆不支持座椅按摩，不仅不注册该 Tool，甚至在 Prompt 中都要暗示“我无法控制按摩”。</li>
+</ul>
+<h3 id="1342">13.4.2 兼容性策略</h3>
+<ul>
+<li><strong>Prompt 向下兼容</strong>：如果 Prompt 中新增了对某个新 Tool 的描述，必须确保旧版车机（没有该 Tool 的 Native 代码）在收到该 Tool Call 时能优雅地返回 <code>ToolNotFound</code> 错误，而不是 Crash。</li>
+<li><strong>Agents SDK 版本锁定</strong>：云端 Gateway 需要根据车机上报的 <code>client_sdk_version</code> 路由到不同版本的 Orchestrator 集群。</li>
+</ul>
+<hr />
+<h2 id="135-resiliency-fallback">13.5 弱网与韧性设计 (Resiliency &amp; Fallback)</h2>
+<h3 id="1351">13.5.1 连接状态机</h3>
+<p>车机端须维护一个健壮的状态机：</p>
+<ul>
+<li><strong>Idle</strong>：待机，VAD 监听中。</li>
+<li><strong>Connecting</strong>：正在获取 Token 并建立 WSS。</li>
+<li><strong>Connected (Realtime)</strong>：正常语音对话中。</li>
+<li><strong>Degraded (Weak Net)</strong>：丢包率 &gt; 10%，自动降低音频采样率或切换到离线模式。</li>
+<li><strong>Offline</strong>：断网。</li>
+</ul>
+<h3 id="1352-graceful-degradation">13.5.2 降级策略 (Graceful Degradation)</h3>
+<ol>
+<li><strong>音频缓冲 (Jitter Buffer)</strong>：Realtime API 对网络抖动敏感。接收端需维护 200ms-400ms 的播放缓冲，以平滑网络抖动带来的卡顿，但这会增加感官延迟，需动态调整。</li>
+<li><strong>本地兜底 (On-device Fallback)</strong>：<ul>
+<li>当 Ping &gt; 1000ms 或连接断开时，系统自动切换至本地 NLU 引擎。</li>
+<li>本地引擎仅支持基础指令：“打开空调”、“导航回家”、“上一首”。</li>
+<li>UI 显性提示：“网络不佳，仅支持基础语音指令”。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="136-observability">13.6 可观测性与监控 (Observability)</h2>
+<p>不能依赖用户投诉来发现问题，必须建立端到端的监控。</p>
+<h3 id="1361-latency-breakdown">13.6.1 关键延迟指标 (Latency Breakdown)</h3>
+<p>我们需要知道“慢”在哪里。Trace ID 必须从车机生成，透传至云端。</p>
+<p>| 指标段 (Segment) | 定义 | 正常阈值 (p99) | 常见瓶颈 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">指标段 (Segment)</th>
+<th style="text-align: left;">定义</th>
+<th style="text-align: left;">正常阈值 (p99)</th>
+<th style="text-align: left;">常见瓶颈</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>VAD Latency</strong></td>
+<td style="text-align: left;">用户停止说话到车机判定结束</td>
+<td style="text-align: left;">300-500ms</td>
+<td style="text-align: left;">本地算法过于保守</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Upload RTT</strong></td>
+<td style="text-align: left;">车机音频包 -&gt; 网关 -&gt; OpenAI</td>
+<td style="text-align: left;">100-300ms</td>
+<td style="text-align: left;">4G 信号差</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Inference Time</strong></td>
+<td style="text-align: left;">OpenAI 收到音频到首个 Token 生成</td>
+<td style="text-align: left;">300-600ms</td>
+<td style="text-align: left;">模型负载高、Context 过长</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Download RTT</strong></td>
+<td style="text-align: left;">OpenAI -&gt; 网关 -&gt; 车机</td>
+<td style="text-align: left;">100-300ms</td>
+<td style="text-align: left;">下行带宽拥塞</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Player Buffer</strong></td>
+<td style="text-align: left;">车机收到音频到扬声器出声</td>
+<td style="text-align: left;">200ms</td>
+<td style="text-align: left;">播放器缓冲设置过大</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>E2E Latency</strong></td>
+<td style="text-align: left;"><strong>用户停顿 -&gt; 听到声音</strong></td>
+<td style="text-align: left;"><strong>&lt; 1.5s</strong></td>
+<td style="text-align: left;">上述总和</td>
+</tr>
+</tbody>
+</table>
+<h3 id="1362-alerting-rules">13.6.2 告警阈值 (Alerting Rules)</h3>
+<ol>
+<li><strong>Safety Critical</strong>：<ul>
+<li><code>ToolCall_Error_Rate</code> &gt; 1%（车控失败率飙升，立即介入）。</li>
+<li><code>Unauthorized_Access</code> &gt; 5次/分钟（可能遭攻击）。</li>
+</ul>
+</li>
+<li><strong>User Experience</strong>：<ul>
+<li><code>E2E_Latency</code> &gt; 3s 持续 5分钟。</li>
+<li><code>Reconnection_Rate</code> &gt; 10%（大面积断网）。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="137">13.7 本章小结</h2>
+<ul>
+<li><strong>架构分层</strong>：车端做“耳与手”（输入输出），云端做“脑”（模型），网关做“盾”（安全与流控）。</li>
+<li><strong>安全至上</strong>：采用 Ephemeral Token 机制，杜绝车端存储长效密钥；车控指令需经过严格的云端校验与本地二次确认。</li>
+<li><strong>配置解耦</strong>：利用 Feature Flags 系统应对车机碎片化和慢速 OTA 问题。</li>
+<li><strong>数据驱动</strong>：建立包含 VAD、网络、推理、渲染的全链路延迟监控，用数据指导优化。</li>
+</ul>
+<hr />
+<h2 id="138">13.8 练习题</h2>
+<h3 id="_1">基础题</h3>
+<p><strong>Q1: 在车载环境中，为什么推荐在车端（Edge）进行 VAD（语音活动检测）而不是将所有音频流式传输给云端？</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：流量成本、延迟、隐私。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>带与成本</strong>：车内大部分时间是静音或噪音声。上传所有音频会消耗大量 4G 流量，并产生巨额的 Realtime API 费用（按分钟计费）。</li>
+<li><strong>延迟</strong>：云端 VAD 需要上传-判断-下发打断指令，增加了“打断”的延迟，体验不如本地检测灵敏。</li>
+<li><strong>隐私</strong>：上传非对话期间的音频涉及严重的隐私合规风险。</li>
+</ol>
+</li>
+</ul>
+</details>
+<p><strong>Q2: 描述“临时会话凭证（Ephemeral Token）”相比于“静态 API Key”在车载场景的两个核心优势。</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：Key 泄露后果、权限控制。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>时效性安全</strong>：临时凭证有效期极短（如仅限本次会话）。即使车机被黑客攻破并导出内存中的 Token，该 Token 也很快失效，无法用于长期盗刷。</li>
+<li><strong>最小权限范围</strong>：静态 Key 通常是 Project 级别的，权限过大。临时 Token 可以在生成时绑定特定的 Context工具白名单，实现单次会话的权限隔离。</li>
+</ol>
+</li>
+</ul>
+</details>
+<h3 id="_2">挑战题</h3>
+<p><strong>Q3: 设计一个“影子模式（Shadow Mode）”的发布流程，用于在不影响用户的情况下验证新的 System Prompt 是否会导致误控车。</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：双路运行，抑制输出。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>采样</strong>：选取 1% 的线上活跃会话。</li>
+<li><strong>分流</strong>：用户的请求同时发送给 V1（当前生产版）和 V2（新版 Prompt/Agent）。</li>
+<li><strong>执行与抑制</strong>：<ul>
+<li>V1 的结果正常返回给车机执行。</li>
+<li>V2 的结果在云端被捕获，<strong>不发给车机</strong>。</li>
+</ul>
+</li>
+<li><strong>比对</strong>：在后台比对 V1 和 V2 的 Tool Call 差异。例如，如果 V1 没动作，但 V2 发出了 <code>open_trunk</code>（打开后备箱）指令，则标记为潜在风险（False Positive）。</li>
+<li><strong>评估</strong>：只有当 V2 的误触率低于阈值时，才转为灰度发布。</li>
+</ol>
+</li>
+</ul>
+</details>
+<p><strong>Q4: 车处于 3G 弱网环境，Realtime API 连接频繁中断。请设计一套完整的用户体验降级方案，涵盖 UI、语音和功能三个维度。</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：预期管理、本地能力。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>UI 维度</strong>：状态栏显示“网络不佳”图标；对话球变色（如从蓝色变为黄色），直观告知用户当前处于“低智模式”。</li>
+<li><strong>语音维度</strong>：<ul>
+<li>合成音切换为本地 TTS（音质可能稍差但响应快）。</li>
+<li>对于无法处理的复杂请求，播放简短提示音或“请稍后再试”，避免长时间静默等待。</li>
+</ul>
+</li>
+<li><strong>功能维度</strong>：<ul>
+<li>自动屏蔽 RAG（知识问答）和 GUI Agent（点餐）意图，避免长时间 Loading 后失败。</li>
+<li>意图识别切换至本地正则/轻量级 NLU，仅响应“车窗、空调、媒体”等高置信度指令。</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+</details>
+<hr />
+<h2 id="139-gotchas">13.9 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="1391">13.9.1 证书过期导致的“砖头”事故</h3>
+<ul>
+<li><strong>现象</strong>：车机与 Gateway 认证用的 Client Certificate 有有效期（如 2 年）。到期后，车机无法认证，所有语音功能失效，且无法 OTA（因为 OTA 也需要认证）。</li>
+<li><strong>调试/预防</strong>：必须设计证书自动轮换（Rotation）机制。在证书过期前 3 个月，每次连接时 Gateway 检查有效期，并自动下发新证书。同时，必须保留一个物理后门或不需要证书的紧急 OTA 通道。</li>
+</ul>
+<h3 id="1392">13.9.2 音频编解码不匹配</h3>
+<ul>
+<li><strong>现象</strong>：Realtime API 推荐使用 G.711 或 PCM16，但为了省流，车机端使用了高压缩比的 Opus 或 AAC。如果网关层未做转码，或者 Sample Rate（24k vs 16k）不匹配，会导致模型听到全是杂音，输出乱码。</li>
+<li><strong>预防</strong>：端到端统一音频格式标准（推荐 PCM 24kHz 单声道用于高质量语音，或 G.711 用于低延迟）。如果在车端编码，务必确保云端有对应的解码器。</li>
+</ul>
+<h3 id="1393-geo-fencing">13.9.3 忽略了“地域围栏（Geo-fencing）”</h3>
+<ul>
+<li><strong>现象</strong>：车辆跨境行驶（如从中国内地开到香港，或欧洲跨国）。由于数据合规要求（GDPR 等），原本连接的云端节点可能不再合法，或者 OpenAI 的服务在某些地区不可用。</li>
+<li><strong>预防</strong>：App 启动时检查 GPS 位置，根据位置连接至对应合规区域的数据中心（Region）。如果进入不支持的区域，应主动切断云端服务并提示用户。</li>
+</ul>
+<h3 id="1394-token">13.9.4 Token 耗尽时的静默崩溃</h3>
+<ul>
+<li><strong>现象</strong>：车主聊得太嗨，单次会话超过了 OpenAI 的 Context Window 限制，或者 Token 余额耗尽。API 返回 4xx 错误，车机端未处理该错误，导致用户说话后系统毫无反应。</li>
+<li><strong>预防</strong>：必须捕获 WebSocket 的 <code>error</code> 事件。遇到 Context Limit 时，自动截断历史消息或开启新 Session；遇到 Quota 问题时，播放特定的错误提示音（“服务暂时不可用”），而不是静默。</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter12.html" class="nav-link prev">← Chapter 12｜可观测性、评测与持续迭代 (Observability, Evals & Iteration)</a><a href="chapter14.html" class="nav-link next">Chapter 14｜测试计划与验收标准（Test & Acceptance） →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

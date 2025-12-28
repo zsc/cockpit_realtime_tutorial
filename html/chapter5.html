@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <nav class="tree-nav" role="tree">
+                    <div class="tree-item " >
+                        <a href="index.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter1.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 1｜范围与需求（Scope & Requirements）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter2.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter3.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 3｜系统总体架构 (System Architecture)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter4.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item active" >
+                        <a href="chapter5.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter6.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 6｜RAG 检索与知识系统设计（RAG & Knowledge System）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter7.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 7｜多模态感知输入设计 (Multimodal Perception Input)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter8.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 8｜车控 ToolCall 设计 (Vehicle Control Tools)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter9.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter10.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 10｜安全、隐私与合规 (Safety, Privacy & Compliance)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter11.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 11｜性能、实时性与降级策略 (Performance, Latency & Fallback)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter12.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 12｜可观测性、评测与持续迭代 (Observability, Evals & Iteration)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter13.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 13｜部署与运维（Deployment & Operations）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter14.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 14｜测试计划与验收标准（Test & Acceptance）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter15.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 15｜附录（Appendix）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="CLAUDE.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Untitled</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-5agents-sdk-orchestration">Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</h1>
+<h2 id="51">5.1 开篇段落</h2>
+<p>在上一章中，我们通过 <strong>OpenAI Realtime API</strong> 建立了一条高性能的“语音-语音”交互管道，解决了“听得清”和“说得快”的问题。然而，真正的智能座舱不仅需要耳聪目明，更需要一个逻辑清晰、分工明确的“大脑”来处理复杂的车主需求。</p>
+<p>本章将聚焦于 <strong>OpenAI Agents SDK</strong> 的应用。在车载环境中，试图用单一的 Prompt 和数百个工具（Tools）来解决所有问题是不可行的——这会导致上下文污染、高延迟和安全隐患。因此，我们需要构建一个 <strong>多代理（Multi-Agent）系统</strong>。</p>
+<p><strong>本章学习目标</strong>：</p>
+<ol>
+<li><strong>架构设计</strong>：掌握基于 <strong>Supervisor（路由器）+ Specialists（专家）</strong> 的星型拓扑结构。</li>
+<li><strong>交接机制（Handoffs）</strong>：深度理解代理间的控制权转移、上下文传递（Context Propagation）与回退逻辑。</li>
+<li><strong>状态管理</strong>：区分 <strong>会话级记忆</strong>（Session Memory）与 <strong>任务级状态</strong>（Task State），并了解其生命周期。</li>
+<li><strong>双循环集成</strong>：解决 Realtime API 的“实时事件流”与 Agents SDK 的“逻辑执行流”之间的同步与冲突问题。</li>
+<li><strong>安全编排</strong>：通过代理设计实现车控权限的物理隔离与护栏（Guardrails）。</li>
+</ol>
+<hr />
+<h2 id="52-supervisor-worker">5.2 核心架构：Supervisor-Worker 拓扑</h2>
+<h3 id="521">5.2.1 为什么选择星型拓扑？</h3>
+<p>在车载场景中，我们推荐使用 <strong>星型（Star）</strong> 或 <strong>Hub-and-Spoke</strong> 拓扑结构，而不是网状结构。</p>
+<ul>
+<li><strong>单一入口</strong>：Router Agent 是唯一的入口，负责初筛。</li>
+<li><strong>职责单一</strong>：专家 Agent 不需要知道彼此的存在，只需要知道如何完成自己的任务以及何时把控制权交还给 Router。</li>
+<li><strong>低延迟启动</strong>：Router 加载的 System Prompt 极短，工具极少（仅用于 Handoff），保证了首字延迟（TTFT）最低。</li>
+</ul>
+<h3 id="522">5.2.2 架构概览图</h3>
+<div class="codehilite"><pre><span></span><code><span class="w">                                    </span><span class="p">[</span><span class="w"> </span><span class="n">User</span><span class="w"> </span><span class="n">Audio</span><span class="w"> </span><span class="n">Stream</span><span class="w"> </span><span class="p">]</span>
+<span class="w">                                            </span><span class="o">|</span>
+<span class="w">                                            </span><span class="n">v</span>
+<span class="w">                                  </span><span class="o">+-------------------+</span>
+<span class="w">                                  </span><span class="o">|</span><span class="w"> </span><span class="n">OpenAI</span><span class="w"> </span><span class="n">Realtime</span><span class="w">   </span><span class="o">|</span>
+<span class="w">                                  </span><span class="o">|</span><span class="w">       </span><span class="n">API</span><span class="w">         </span><span class="o">|</span>
+<span class="w">                                  </span><span class="o">+---------+---------+</span>
+<span class="w">                                            </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="kr">Function</span><span class="w"> </span><span class="n">Call</span><span class="w"> </span><span class="nf">Event</span><span class="p">)</span>
+<span class="w">                                            </span><span class="n">v</span>
+<span class="o">+---------------------------------------------------------------------------------+</span>
+<span class="o">|</span><span class="w">                            </span><span class="n">AGENTS</span><span class="w"> </span><span class="n">SDK</span><span class="w"> </span><span class="n">RUNTIME</span><span class="w"> </span><span class="n">ENV</span><span class="w">                               </span><span class="o">|</span>
+
+<span class="o">|</span><span class="w">                            </span><span class="n">AGENTS</span><span class="w"> </span><span class="n">SDK</span><span class="w"> </span><span class="n">RUNTIME</span><span class="w"> </span><span class="n">ENV</span><span class="w">                               </span><span class="o">|</span>
+<span class="o">|</span><span class="w">                                                                                 </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="o">+------------------+</span><span class="w">         </span><span class="n">Handoff</span><span class="w"> </span><span class="p">(</span><span class="nf">Transfer</span><span class="p">)</span><span class="w">        </span><span class="o">+------------------+</span><span class="w">    </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="o">|</span><span class="w">                  </span><span class="o">|</span><span class="w"> </span><span class="o">--------------------------------&gt;</span><span class="w"> </span><span class="o">|</span><span class="w">  </span><span class="n">Vehicle</span><span class="w"> </span><span class="n">Control</span><span class="w"> </span><span class="o">|</span><span class="w">    </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="o">|</span><span class="w">   </span><span class="n">Supervisor</span><span class="w">     </span><span class="o">|</span><span class="w">                                   </span><span class="o">|</span><span class="w">      </span><span class="n">Agent</span><span class="w">       </span><span class="o">|</span><span class="w">    </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="o">|</span><span class="w">    </span><span class="p">(</span><span class="n">Router</span><span class="p">)</span><span class="w">      </span><span class="o">|</span><span class="w"> </span><span class="o">&lt;--------------------------------</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">High</span><span class="w"> </span><span class="n">Safety</span><span class="p">)</span><span class="w">    </span><span class="o">|</span><span class="w">    </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="o">|</span><span class="w">                  </span><span class="o">|</span><span class="w">         </span><span class="n">Result</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">Handoff</span><span class="w"> </span><span class="n">Back</span><span class="w">     </span><span class="o">+------------------+</span><span class="w">    </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="o">+--------+---------+</span><span class="w">                                                           </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">                                                                     </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="n">Handoff</span><span class="w">                 </span><span class="o">+------------------+</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">+-----------------------&gt;</span><span class="w"> </span><span class="o">|</span><span class="w">    </span><span class="n">RAG</span><span class="w"> </span><span class="n">Knowledge</span><span class="w"> </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">                         </span><span class="o">|</span><span class="w">       </span><span class="n">Agent</span><span class="w">      </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="o">&lt;----------------------</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">High</span><span class="w"> </span><span class="n">Latency</span><span class="p">)</span><span class="w">   </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">                         </span><span class="o">+------------------+</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">                                                                     </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="n">Handoff</span><span class="w">                 </span><span class="o">+------------------+</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">           </span><span class="o">+-----------------------&gt;</span><span class="w"> </span><span class="o">|</span><span class="w">    </span><span class="n">GUI</span><span class="w"> </span><span class="kr">Service</span><span class="w">   </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">                                     </span><span class="o">|</span><span class="w">       </span><span class="n">Agent</span><span class="w">      </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">                                     </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">Stateful</span><span class="p">)</span><span class="w">       </span><span class="o">|</span><span class="w">                        </span><span class="o">|</span>
+<span class="o">|</span><span class="w">                                     </span><span class="o">+------------------+</span><span class="w">                        </span><span class="o">|</span>
+
+<span class="o">+---------------------------------------------------------------------------------+</span>
+</code></pre></div>
+
+<h3 id="523">5.2.3 角色定义</h3>
+<p>| 角色 | 职责 (Responsibilities) | 典型工具 (Tools) | 上下文策略 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">角色</th>
+<th style="text-align: left;">职责 (Responsibilities)</th>
+<th style="text-align: left;">典型工具 (Tools)</th>
+<th style="text-align: left;">上下文策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Router (Supervisor)</strong></td>
+<td style="text-align: left;">意图分类、全局状态维护、错误兜底</td>
+<td style="text-align: left;"><code>transfer_to_car_control</code>, <code>transfer_to_rag</code>, <code>transfer_to_gui</code></td>
+<td style="text-align: left;">极简，仅保留最近几轮对话概要</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Vehicle Control Agent</strong></td>
+<td style="text-align: left;">精确控制车辆硬件、参数校验</td>
+<td style="text-align: left;"><code>set_seat_heat(level)</code>, <code>open_window(pos)</code>, <code>get_tire_pressure()</code></td>
+<td style="text-align: left;">严谨System Prompt 包含安全规范</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>RAG Agent</strong></td>
+<td style="text-align: left;">查询手册、故障解释、闲聊</td>
+<td style="text-align: left;"><code>search_knowledge_base(query)</code>, <code>format_citation()</code></td>
+<td style="text-align: left;">宽泛，包含大量检索到的文档片段</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GUI Agent</strong></td>
+<td style="text-align: left;">操作屏幕 App、多轮业务流程</td>
+<td style="text-align: left;"><code>click_element(id)</code>, <code>scroll(direction)</code>, <code>input_text(val)</code></td>
+<td style="text-align: left;">状态机，保留当前页面 UI 树信息</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="53-routing-handoffs">5.3 路由与交接机制 (Routing &amp; Handoffs)</h2>
+<p>这是 Agents SDK 的核心。路由不仅仅是“分类”，更是“带参数的跳转”。</p>
+<h3 id="531-basic-handoff">5.3.1 基础交接 (Basic Handoff)</h3>
+<p>最简单的交接只是切换处理对话的 Agent 对象。</p>
+<blockquote>
+<p><strong>Rule of Thumb</strong>: Router Agent 不应该回答领域问题。如果用户问“胎压多少”，Router <strong>必须</strong> 切换到车控 Agent，而不是自己尝试回答（哪怕它偶尔能猜对）。</p>
+</blockquote>
+<h3 id="532-handoff-with-payload">5.3.2 带载荷的交接 (Handoff with Payload)</h3>
+<p>为了避免用户重复说话，Handoff 函数必须定义参数 Schema。</p>
+<ul>
+<li><strong>场景</strong>：用户说“把空调开到 24 度”。</li>
+<li><strong>错设计</strong>：Router 切换到 ClimateAgent -&gt; ClimateAgent 问“你要调到多少度？” -&gt; 用户怒。</li>
+<li><strong>正确设计</strong>：<ul>
+<li>Router 工具定义：<code>transfer_to_climate(initial_intent: str, temperature: int | null)</code></li>
+<li>执行流：Router 提取 <code>temperature=24</code> -&gt; 调用 Handoff -&gt; ClimateAgent 初始化 -&gt; 检测到参数 -&gt; 直接调用 <code>set_temp(24)</code>。</li>
+</ul>
+</li>
+</ul>
+<h3 id="533-the-pop-strategy">5.3.3 反向交接与控制权回归 (The "Pop" Strategy)</h3>
+<p>专家 Agent 完成任务后，必须有明确的“出口”。</p>
+<ol>
+<li><strong>任务完成 (Task Complete)</strong>：调用 <code>handoff_back_to_supervisor(result_summary="空调已调至24度")</code>。</li>
+<li><strong>能力不足 (Out of Scope)</strong>：例如在点餐 Agent 中用户问“我的车能跑多快？”，点餐 Agent 必须识别这是“非点餐意图”，调用 <code>handoff_back_to_supervisor(reason="off_topic", user_query="...")</code>。</li>
+</ol>
+<hr />
+<h2 id="54">5.4 状态管理与记忆设计</h2>
+<p>在多代理系统中，记忆（Memory）需要分层管理。</p>
+<h3 id="541-global-context">5.4.1 全局会话状态 (Global Context)</h3>
+<p>存储 Agents SDK 的 <code>runner</code> 或顶层上下文中，所有 Agent 可读（部分可写）。</p>
+<ul>
+<li><strong>用户画像</strong>：称呼、偏好（如：喜欢冷风）。</li>
+<li><strong>车辆实时快照</strong>：当前车速、档位、地理位置（经纬度/城市）、车内人员分布。<ul>
+<li><em>设计要点</em>：这些信息通常作为 System Prompt 的动态变量注入，每轮对话更新。</li>
+</ul>
+</li>
+</ul>
+<h3 id="542-agent-local-state">5.4.2 局部/瞬时状态 (Agent-Local State)</h3>
+<p>仅在当前 Agent 活跃期间有效。</p>
+<ul>
+<li><strong>GUI 状态</strong>：当前页面截图的 Hash、可点击元素列表、购物车内容。</li>
+<li><strong>RAG 缓存</strong>：上一次检索到的 5 个文档块（用于支持追问）。</li>
+</ul>
+<h3 id="543">5.4.3 状态的生命周期</h3>
+<p>当从 Agent A 切换到 Agent B 时：</p>
+<ol>
+<li><strong>压栈</strong>：如果 A 的任务未完成（如点餐中途切去开窗），应将 A 的关键状态（购物车）序列化保存到全局 <code>task_stack</code>。</li>
+<li><strong>销毁</strong>：如果 A 的任务已完成，直接丢弃 A 的上下文，防止 Token 累积导致后续推理变慢。</li>
+</ol>
+<hr />
+<h2 id="55-realtime-api-agents-sdk">5.5 Realtime API 与 Agents SDK 的集成</h2>
+<p>这是系统实现的难点：Realtime API 是流式的（WebSocket），而 Agents SDK 逻辑通常是同步或异步的函数调用。</p>
+<h3 id="551-the-event-loop">5.5.1 事件驱动循环 (The Event Loop)</h3>
+<p>我们需要一个适配层（Adapter）来桥接两者。</p>
+<ol>
+<li><strong>监听</strong>：适配器监听 Realtime API 的 <code>response.function_call_arguments.done</code> 事件。</li>
+<li><strong>解析</strong>：提取 <code>call_id</code>、<code>name</code> (工具名) 和 <code>arguments</code> (JSON)。</li>
+<li><strong>代理执行</strong>：<ul>
+<li>将工具调用请求转发给 Agents SDK 的 <code>AgentRunner</code>。</li>
+<li><strong>如果是 Handoff 工具</strong>：SDK 内部切换 <code>current_agent</code> 指针，<strong>不</strong>向 Realtime API 返回结果，而是让新 Agent 生成新的回复指令。</li>
+<li><strong>如果是普通工具</strong>（如 <code>set_seat</code>）：执行 Python 函数，获取返回值。</li>
+</ul>
+</li>
+<li><strong>响应</strong>：适配器通过 <code>conversation.item.create</code> (function_call_output) 将结果传回 Realtime API。</li>
+<li><strong>触发生成</strong>：发送 <code>response.create</code> 让 Realtime API 基于工具结果成语音。</li>
+</ol>
+<h3 id="552-handling-interruptions">5.5.2 处理打断 (Handling Interruptions)</h3>
+<p>在 Agent 执行耗时任务（如 RAG 搜索）时，用户可能会打断。</p>
+<ul>
+<li><strong>Realtime 端</strong>：收到新语音，发送 <code>input_audio_buffer.speech_started</code>。</li>
+<li><strong>适配层</strong>：<ol>
+<li>立即收到 <code>response.cancel</code> 事件。</li>
+<li><strong>关键动作</strong>：检查 Agents SDK 中是否有正在运行的 <strong>副作用操作</strong>（如正在支付、正在写数据库）。</li>
+<li>如果是<strong>只读操作</strong>（如搜索），立即 <code>kill</code> 线程/协程。</li>
+<li>如果是<strong>写操作</strong>，允许其完成（原子性），但丢弃其语音回复，转而处理用户的新指令。</li>
+</ol>
+</li>
+</ul>
+<hr />
+<h2 id="56-patterns-strategies">5.6 常见模式与策略 (Patterns &amp; Strategies)</h2>
+<h3 id="561-middle-out-the-guardrail-pattern">5.6.1 模式：Middle-out 护栏 (The Guardrail Pattern)</h3>
+<p>不要完全信任 Agent 的输出。在 Agent 和车辆底层 API 之间插入一个 <strong>确定性代码层</strong>。</p>
+<ul>
+<li><strong>流程</strong>：Agent 输出 <code>open_trunk()</code> -&gt; <strong>Guardrail Interceptor</strong> 拦截 -&gt; 检查 <code>speed &gt; 5km/h</code> -&gt; 拒绝执行并抛出 <code>SecurityError</code> -&gt; Agent 捕获错误并向用户解释“行驶中无法打开后备箱”。</li>
+</ul>
+<h3 id="562-human-in-the-loop">5.6.2 模式：人机协同确认 (Human-in-the-loop)</h3>
+<p>对于高风险操作（如购买、恢复出厂设置），Agent 不直接调用执行工具。</p>
+<ol>
+<li>用户：“帮我下单。”</li>
+<li>GUI Agent：调用 <code>stage_order(items)</code>（暂存，不提交）。</li>
+<li>GUI Agent 回复：“好的，一共 50 元，请确认支付。”</li>
+<li>用户：“确认。”</li>
+<li>GUI Agent：调用 <code>execute_payment()</code>。<blockquote>
+<p><strong>注意</strong>：必须在 System Prompt 中强制要求 Agent 遵循此“两步走”策略。</p>
+</blockquote>
+</li>
+</ol>
+<hr />
+<h2 id="57">5.7 本章小结</h2>
+<ul>
+<li><strong>架构决定上限</strong>：Supervisor 模式通过解耦降低了复杂度，是车载多模态交互的最佳实践。</li>
+<li><strong>Handoff 是核心</strong>：优秀的 Handoff 设计包含意图、参数（Payload）和上下文，能实现无缝的“无感切换”。</li>
+<li><strong>Realtime 适配</strong>：必须处理好 WebSocket 事件流与 Agent 逻辑流的同步，特别是打断（Cancellation）逻辑。</li>
+<li><strong>状态隔离</strong>：通过区分全局与局部状态，既保证了体验的连贯性，又防止了 Token 爆炸和隐私泄露。</li>
+</ul>
+<hr />
+<h2 id="58">5.8 练习题</h2>
+<h3 id="50">基础题 (50%)</h3>
+<p><strong>Q1: 为什么 Supervisor Agent 的 System Prompt 应该尽可能短，且不包含具体业务逻辑？</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：考虑延迟和 Token 成本。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>降低延迟 (TTFT)</strong>：Supervisor 是每轮对话的必经之路。Prompt 越短，首字生成速度越快，用户感知到的响应越迅速。</li>
+<li><strong>减少干扰</strong>：过多的业务细节会干扰 LLM 的路由判断能力，使其倾向于自己回答而不是转交给更专业的专家代理。</li>
+<li><strong>节省成本</strong>：作为入口，它的调用频率最高，保持轻量级可以显著降低 Token 消耗。</li>
+</ol>
+</li>
+</ul>
+</details>
+<p><strong>Q2: 请设计一个 <code>transfer_to_music_agent</code> 的工具定义（JSON Schema），要求能承接用户的模糊意图（如“我想听点放松的）。</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：参数不能只是布尔值，需要传递语义。</li>
+<li><strong>参考答案</strong>：</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;transfer_to_music_agent&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Transfer control to the music specialist when user wants to play media.&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;intent_summary&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Summary of user&#39;s music request, e.g., &#39;play relaxing music&#39; or &#39;play Jay Chou&#39;.&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;mood&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;enum&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;happy&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;relaxing&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;energetic&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;focus&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;unknown&quot;</span><span class="p">],</span>
+<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Detected mood from user utterance.&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;intent_summary&quot;</span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="o">*</span><span class="n">解析</span><span class="o">*</span><span class="n">：通过</span><span class="w"> </span><span class="n n-Quoted">`intent_summary`</span><span class="w"> </span><span class="n">和</span><span class="w"> </span><span class="n n-Quoted">`mood`</span><span class="n">，Music</span><span class="w"> </span><span class="n">Agent</span><span class="w"> </span><span class="n">启动时就可以直接调用推荐算法，而不需要再次问用户“你想听什么样的放松音？”。</span>
+</code></pre></div>
+
+</details>
+<p><strong>Q3: 当 RAG Agent 发现用户的问题（如“轮胎气压怎么看”）在手册里找不到答案时，它应该怎么做？</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：不要瞎编，也不要直接结束会话。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>尝试回退</strong>：首先判断问题是否可能属于其他 Agent（例如是否可以通过 GUI 查看胎压？）。</li>
+<li><strong>坦诚回答并交权</strong>：如果确定无法回答，应生成回复“抱歉，我在手册中没找到相关信息”，然后调用 <code>handoff_back_to_supervisor</code>，结束当前代理的控制权。</li>
+<li><strong>切忌</strong>：编造虚假信息（幻觉）或长时间占用控制权不释放。</li>
+</ol>
+</li>
+</ul>
+</details>
+<h3 id="50_1">挑战题 (50%)</h3>
+<p><strong>Q4: 复杂场景设计：用户在与 GUI Agent 进行多轮对话（如筛选餐厅）时，Realtime API 突然断线重连。请设计一套恢复机制，确保用户不需要重新开始筛选。</strong></p>
+<details>
+<summary>点击查看提示与参考案</summary>
+<ul>
+<li><strong>提示</strong>：Session ID 持久化、状态快照。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>状态持久化</strong>：每次 Agent 状态变更（如筛选条件更新），后端应将 <code>current_agent_id</code> 和 <code>agent_state</code> (JSON) 写入 Redis，Key 为 <code>session_id</code>。</li>
+<li><strong>重连握手</strong>：客户端重连时，发送带有 <code>session_id</code> 的握手包。</li>
+<li><strong>状态恢复</strong>：<ul>
+<li>后端检测到存在的 Session。</li>
+<li>Router 此时不接管，而是直接实例化之前的 GUI Agent。</li>
+<li>将 <code>agent_state</code> 注入 GUI Agent 的 Prompt 或 Memory。</li>
+</ul>
+</li>
+<li><strong>主动引导</strong>：恢复连接后，GUI Agent 主动发送一条文本（TTS）："刚才网络有点波动，我们正在筛选距离最近的川菜馆，对吗？"</li>
+</ol>
+</li>
+</ul>
+</details>
+<p><strong>Q5: 竞态条件（Race Condition）：用户语速很快，说“打开空调”（指令A），紧接着又说“算了别开了”（指令B）。Realtime API 可能先后触发两次 Function Call。如何确保空调最后是关闭的？</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：基于时间戳的请求丢弃，或通过 Agent 自身的推理能力。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>方案一：Realtime 上下文聚合</strong>。Realtime API 的 VAD 如果设置得当，会将这两句话合并为一个 Turn。模型接收到文本 "打开空调... 算了别开了"，Agent 自身的逻辑会判断出最终意图是“无操作”。</li>
+<li><strong>方案二：命令队列与防抖</strong>。如果被切分为两个 Turn，后端车控服务应维护一个指令队列。收到指令 A，延迟 500ms 执行。如果在 500ms 内收到指令 B（取消 A），则撤销指令 A。</li>
+<li><strong>方案三：版本号机制</strong>。Agent 的状态维护一个 <code>version_id</code>。指令 B 的处理必须基于指令 A 之后的最新状态。</li>
+</ol>
+</li>
+</ul>
+</details>
+<p><strong>Q6: 如何设计一个“主动关心”功能？例如监测到 DMS 疲劳信号时，Router 应该如何介入当前正在进行的对话（可能是音乐，也可能是航）？</strong></p>
+<details>
+<summary>点击查看提示与参考答案</summary>
+<ul>
+<li><strong>提示</strong>：Server-side Event 触发、优先级仲裁。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>信号注入</strong>：DMS 信号作为 <code>server_notification</code> 事件发送给 Agents Runtime。</li>
+<li><strong>强行打断</strong>：无论当前是哪个 Agent 在运行，Runtime 暂停其执行。</li>
+<li><strong>切入 Safety Agent</strong>：Runtime 临时将控制权交给 Safety Agent。</li>
+<li><strong>执行动作</strong>：Safety Agent 调用 TTS 输出“检测到您有些疲劳，是否需要为您播放提神的音乐或导航到最近的服务区？”</li>
+<li><strong>恢复或分支</strong>：<ul>
+<li>用户拒绝 -&gt; 恢复之前的 Agent（栈弹出）。</li>
+<li>用户接受 -&gt; Handoff 到 Music 或 Nav Agent。</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+</details>
+<hr />
+<h2 id="59-gotchas">5.9 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="591-handoff-ping-pong-loop">5.9.1 陷阱：Handoff 乒乓 (Ping-Pong Loop)</h3>
+<ul>
+<li><strong>现象</strong>：Router 把任务转给 Agent A，Agent A 觉得自己处理不了又转回 Router，Router 觉得这事儿还得 A 办，又转给 A。系统死循环，Token 耗尽。</li>
+<li><strong>原因</strong>：Prompt 定义边界模糊，或者 Handoff 的 System Prompt 没有包含“不要把刚刚收到的任务原封不动退回”的指令。</li>
+<li><strong>调试技巧</strong>：<ul>
+<li>在 Handoff 参数中增加 <code>history_routing</code> 字段，记录 <code>[Router, AgentA]</code>。</li>
+<li>Router 再次想转给 Agent A 时，检查历史，发现已经试过了，强制走 <strong>Fallback 策略</strong>（如道歉并转人工/结束）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="592-agent">5.9.2 陷阱：Agent 的性格分裂</h3>
+<ul>
+<li><strong>现象</strong>：车控 Agent 说话很机械，切到闲聊 Agent 突然变得很活泼，用户体验割裂感强。</li>
+<li><strong>原因</strong>：不同 Agent 的 System Prompt 中的 <code>Tone &amp; Voice</code> 定义不一致。</li>
+<li><strong>Rule of Thumb</strong>：定义一个 <strong>Global Persona Prompt</strong>（全局人设模版），作为所有 Agent Prompt 的前缀（Prefix）。</li>
+</ul>
+<h3 id="593">5.9.3 陷阱：工具参数的幻觉</h3>
+<ul>
+<li><strong>现象</strong>：用户说“打开那个...呃...副驾的窗户”。Agent 可能会调用 <code>open_window(seat="driver")</code>，因模型有偏见。</li>
+<li><strong>调试技巧</strong>：<ul>
+<li>使用 <code>enum</code> 严格限制参数范围。</li>
+<li>在 System Prompt 中强调：<strong>“如果用户没有明确指定参数，必须先发起询问，严禁猜测。”</strong></li>
+</ul>
+</li>
+</ul>
+<h3 id="594-realtime">5.9.4 陷阱：Realtime 音频截断</h3>
+<ul>
+<li><strong>现象</strong>：Agent 刚开始说话就被截断。</li>
+<li><strong>原因</strong>：Agent 执行 Handoff 后，新 Agent 立即输出了文本，但旧 Agent 的工具调用返回值（Function Output）还没完全传给 Realtime API，导致时序错乱。</li>
+<li><strong>调试技巧</strong>：确保 Agent 切换是原子操作，且在发送新文本前，必须先完成上一个 Function Call 的闭环（发送 output frame）。</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter4.html" class="nav-link prev">← Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</a><a href="chapter6.html" class="nav-link next">Chapter 6｜RAG 检索与知识系统设计（RAG & Knowledge System） →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

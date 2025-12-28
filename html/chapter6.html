@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 6｜RAG 检索与知识系统设计（RAG & Knowledge System）</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <nav class="tree-nav" role="tree">
+                    <div class="tree-item " >
+                        <a href="index.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter1.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 1｜范围与需求（Scope & Requirements）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter2.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter3.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 3｜系统总体架构 (System Architecture)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter4.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter5.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item active" >
+                        <a href="chapter6.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 6｜RAG 检索与知识系统设计（RAG & Knowledge System）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter7.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 7｜多模态感知输入设计 (Multimodal Perception Input)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter8.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 8｜车控 ToolCall 设计 (Vehicle Control Tools)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter9.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter10.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 10｜安全、隐私与合规 (Safety, Privacy & Compliance)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter11.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 11｜性能、实时性与降级策略 (Performance, Latency & Fallback)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter12.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 12｜可观测性、评测与持续迭代 (Observability, Evals & Iteration)</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter13.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 13｜部署与运维（Deployment & Operations）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter14.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 14｜测试计划与验收标准（Test & Acceptance）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="chapter15.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Chapter 15｜附录（Appendix）</span>
+                        </a>
+                    </div>
+                
+                    <div class="tree-item " >
+                        <a href="CLAUDE.html" class="tree-link">
+                            <span class="tree-icon">📄</span>
+                            <span class="tree-title">Untitled</span>
+                        </a>
+                    </div>
+                </nav>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-6rag-rag-knowledge-system">Chapter 6｜RAG 检索与知识系统设计（RAG &amp; Knowledge System）</h1>
+<h2 id="1">1. 开篇段落与设计目标</h2>
+<h3 id="11">1.1 背景</h3>
+<p>在车载环境中，驾驶员与乘客对信息的获取有着极高的要求：<strong>准确（Accuracy）</strong>、<strong>即时（Immediacy）</strong>和<strong>简明（Conciseness）</strong>。通用大模型（Foundation Models）虽然具备常识，但缺乏特定车辆（Unique VIN）的配置知识。例如，同一款车型的“2023款”和“2025款”在自动驾驶开启方式上可能完全不同。如果模型产生幻觉，不仅影响体验，更可能引发安全事故。</p>
+<h3 id="12">1.2 核心目标</h3>
+<p>本章旨在设计一个<strong>特定于车辆上下文（Vehicle-Context-Aware）</strong>的检索增强生成系统。</p>
+<ul>
+<li><strong>高精度</strong>：通过严格的元数据过滤，确保只回答当前车辆配置相关的问题。</li>
+<li><strong>低延迟</strong>：适配 Realtime API 的节奏，从意图识别到语音输出的首字延迟（Time to First Token）控制在可接受范围内。</li>
+<li><strong>可溯源</strong>：所有回答必须提供手册章节或文档引用，支持“有据可查”。</li>
+<li><strong>多模态融合</strong>：支持“看到仪表盘报警灯”直接触发检索。</li>
+</ul>
+<hr />
+<h2 id="2-data-ingestion-governance">2. 知识数据源与治理（Data Ingestion &amp; Governance）</h2>
+<p>数据处理流水线（ETL）是 RAG 系统的灵魂。垃圾进，垃圾出（Garbage In, Garbage Out）。</p>
+<h3 id="21">2.1 异构数据源分类</h3>
+<p>车载知识库远不止一本 PDF 手册，它是一个异构数据的集合：</p>
+<p>| 数据类型 | 来源示例 | 更新频率 | 特点 | 处理策略 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">数据类型</th>
+<th style="text-align: left;">来源示例</th>
+<th style="text-align: left;">更新频率</th>
+<th style="text-align: left;">特点</th>
+<th style="text-align: left;">处理策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>核心静态数据</strong></td>
+<td style="text-align: left;">车主手册、保修手册、快速指南</td>
+<td style="text-align: left;">年/款更新</td>
+<td style="text-align: left;">结构化极强，含大量表格和警告框</td>
+<td style="text-align: left;">PDF 解析 + 布局分析 + 表格重构</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>动态服务数</strong></td>
+<td style="text-align: left;">故障码库 (DTC)、TSB (技术通报)</td>
+<td style="text-align: left;">月/周更新</td>
+<td style="text-align: left;">代码 (P0300) 对应 文本解释</td>
+<td style="text-align: left;">键值对索引 (Keyword Search)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>运营/生活数据</strong></td>
+<td style="text-align: left;">车机 App 权益、充电桩指引、保险条款</td>
+<td style="text-align: left;">实时/日更新</td>
+<td style="text-align: left;">碎片化、营销话术多</td>
+<td style="text-align: left;">网页抓取 + 语义分块</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>多模态索引</strong></td>
+<td style="text-align: left;">仪表图标、中控按钮图、机舱部件图</td>
+<td style="text-align: left;">车型换代更新</td>
+<td style="text-align: left;">图像数据</td>
+<td style="text-align: left;">图像向量化 (CLIP/ViT) 或分类标签化</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-advanced-chunking">2.2 深度文档解析与分块策略 (Advanced Chunking)</h3>
+<p>简单的“按字符数切分”在手册场景下是灾难性的。我们需要<strong>语义感知分块</strong>。</p>
+<h4 id="221-layout-aware-parsing">2.2.1 布局感知解析 (Layout-Aware Parsing)</h4>
+<p>PDF 手册中常有跨页的表格、侧边栏的警告（Warning/Caution）。</p>
+<ul>
+<li><strong>表格处理</strong>：必须将表格还原为 Markdown 表格或 JSON，嵌入到对应的文本块中。如果表格被拆散，模型将无法理解“前轮”对应“2.5 bar”。</li>
+<li><strong>警告关联</strong>：将“警告框”与其紧邻的操作步骤强绑定，不可拆分。</li>
+</ul>
+<h4 id="222-parent-child-indexing">2.2.2 父子索引策略 (Parent-Child Indexing)</h4>
+<p>为了兼顾检索的<strong>精准度</strong>和生成上下文的<strong>完整性</strong>，采用父子块策略：</p>
+<ul>
+<li><strong>Child Chunk (用于检索)</strong>：细粒度切分（如 128 tokens），包含具体的关键词和单一语义点。</li>
+<li><strong>Parent Chunk (用于生成)</strong>：当 Child 被检索命中时，向 LLM 投喂其所属的更大的 Parent Chunk（如 512-1024 tokens），包含完整章节上下文。</li>
+</ul>
+<h3 id="23-metadata-taxonomy">2.3 元数据分类体系 (Metadata Taxonomy)</h3>
+<p>这是车规 RAG 最关键的设计。每个 Chunk 必须打上以下 Tag：</p>
+<ul>
+<li><code>vin_series</code>: 车型系列 (e.g., Model X)</li>
+<li><code>model_year</code>: 年款 (e.g., 2024)</li>
+<li><code>trim_level</code>: 配置级 (e.g., Plaid, LongRange)</li>
+<li><code>region</code>: 市场区域 (e.g., CN, EU, NA) - 法规不同导致功能说明不同</li>
+<li><code>software_version</code>: 软件版本范围 (e.g., &gt;v11.0)</li>
+</ul>
+<hr />
+<h2 id="3-retrieval-architecture">3. 检索架构设计（Retrieval Architecture）</h2>
+<p>我们采用<strong>混合检索 + 重排</strong>的工业级架构，以平衡语义理解和确匹配。</p>
+<h3 id="31-ascii">3.1 架构数据流 ASCII 图</h3>
+<div class="codehilite"><pre><span></span><code><span class="p">[</span><span class="n">User</span><span class="w"> </span><span class="n">Audio</span><span class="w"> </span><span class="n">Stream</span><span class="p">]</span><span class="w"> </span>
+<span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">OpenAI</span><span class="w"> </span><span class="n">Realtime</span><span class="w"> </span><span class="n">API</span><span class="p">)</span>
+<span class="w">       </span><span class="n">v</span>
+<span class="p">[</span><span class="n">User</span><span class="w"> </span><span class="n">Text</span><span class="o">/</span><span class="n">Transcript</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">[</span><span class="n">Context</span><span class="o">:</span><span class="w"> </span><span class="n">VIN</span><span class="p">,</span><span class="w"> </span><span class="n">Location</span><span class="p">,</span><span class="w"> </span><span class="n">Speed</span><span class="p">]</span>
+<span class="w">       </span><span class="o">|</span>
+<span class="w">       </span><span class="n">v</span>
+<span class="p">[</span><span class="n">Query</span><span class="w"> </span><span class="n">Understanding</span><span class="w"> </span><span class="kr">Module</span><span class="p">]</span>
+<span class="o">|</span><span class="w"> </span><span class="mf">1.</span><span class="w"> </span><span class="n">Query</span><span class="w"> </span><span class="n">Rewrite</span><span class="o">:</span><span class="w"> </span><span class="s">&quot;那个红色的圈圈灯&quot;</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="s">&quot;制动系统故障警告灯&quot;</span>
+<span class="o">|</span><span class="w"> </span><span class="mf">2.</span><span class="w"> </span><span class="n">Intent</span><span class="w"> </span><span class="n">Classification</span><span class="o">:</span><span class="w"> </span><span class="n">Manual_QA</span><span class="w"> </span><span class="n">vs</span><span class="p">.</span><span class="w"> </span><span class="n">ChitChat</span><span class="w"> </span><span class="n">vs</span><span class="p">.</span><span class="w"> </span><span class="n">Car_Control</span>
+<span class="o">|</span><span class="w"> </span><span class="mf">3.</span><span class="w"> </span><span class="n">Metadata</span><span class="w"> </span><span class="n">Extraction</span><span class="o">:</span><span class="w"> </span><span class="n">Extract</span><span class="w"> </span><span class="n">filter</span><span class="w"> </span><span class="n">tags</span><span class="w"> </span><span class="n">based</span><span class="w"> </span><span class="n">on</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="n">car</span><span class="w"> </span><span class="n">state</span>
+<span class="w">       </span><span class="o">|</span>
+<span class="w">       </span><span class="n">v</span>
+<span class="p">[</span><span class="n">Hybrid</span><span class="w"> </span><span class="n">Search</span><span class="w"> </span><span class="n">Engine</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;===</span><span class="w"> </span><span class="p">(</span><span class="kr">Parallel</span><span class="w"> </span><span class="n">Execution</span><span class="p">)</span><span class="w"> </span><span class="o">===&gt;</span>
+<span class="o">|</span><span class="w">                                                  </span><span class="o">|</span>
+<span class="o">|--</span><span class="w"> </span><span class="p">[</span><span class="n">Vector</span><span class="w"> </span><span class="n">Search</span><span class="w"> </span><span class="p">(</span><span class="n">Dense</span><span class="p">)]</span><span class="w">                        </span><span class="o">|--</span><span class="w"> </span><span class="p">[</span><span class="n">Keyword</span><span class="w"> </span><span class="n">Search</span><span class="w"> </span><span class="p">(</span><span class="n">Sparse</span><span class="o">/</span><span class="n">BM25</span><span class="p">)]</span>
+<span class="o">|</span><span class="w">   </span><span class="p">(</span><span class="n">Captures</span><span class="w"> </span><span class="s">&quot;meaning&quot;</span><span class="p">)</span><span class="w">                           </span><span class="o">|</span><span class="w">   </span><span class="p">(</span><span class="n">Captures</span><span class="w"> </span><span class="n">exact</span><span class="w"> </span><span class="n">codes</span><span class="o">/</span><span class="n">names</span><span class="p">)</span>
+<span class="o">|</span><span class="w">   </span><span class="n">Query</span><span class="o">:</span><span class="w"> </span><span class="n">Embedding</span><span class="p">(</span><span class="n">Text</span><span class="p">)</span><span class="w">                         </span><span class="o">|</span><span class="w">   </span><span class="n">Query</span><span class="o">:</span><span class="w"> </span><span class="s">&quot;Isofix&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;P0300&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;5W-40&quot;</span>
+<span class="o">|</span><span class="w">   </span><span class="n">Filter</span><span class="o">:</span><span class="w"> </span><span class="n">model</span><span class="o">=</span><span class="s">&#39;X&#39;</span><span class="w"> </span><span class="kr">AND</span><span class="w"> </span><span class="n">year</span><span class="o">=</span><span class="s">&#39;2024&#39;</span><span class="w">              </span><span class="o">|</span><span class="w">   </span><span class="n">Filter</span><span class="o">:</span><span class="w"> </span><span class="n">model</span><span class="o">=</span><span class="s">&#39;X&#39;</span><span class="w"> </span><span class="kr">AND</span><span class="w"> </span><span class="n">year</span><span class="o">=</span><span class="s">&#39;2024&#39;</span>
+<span class="o">|</span><span class="w">   </span><span class="kr">Return</span><span class="o">:</span><span class="w"> </span><span class="n">Top</span><span class="o">-</span><span class="mi">20</span><span class="w"> </span><span class="n">Chunks</span><span class="w">                          </span><span class="o">|</span><span class="w">   </span><span class="kr">Return</span><span class="o">:</span><span class="w"> </span><span class="n">Top</span><span class="o">-</span><span class="mi">20</span><span class="w"> </span><span class="n">Chunks</span>
+
+<span class="o">|</span><span class="w">   </span><span class="kr">Return</span><span class="o">:</span><span class="w"> </span><span class="n">Top</span><span class="o">-</span><span class="mi">20</span><span class="w"> </span><span class="n">Chunks</span><span class="w">                          </span><span class="o">|</span><span class="w">   </span><span class="kr">Return</span><span class="o">:</span><span class="w"> </span><span class="n">Top</span><span class="o">-</span><span class="mi">20</span><span class="w"> </span><span class="n">Chunks</span>
+<span class="o">|</span><span class="w">                                                  </span><span class="o">|</span>
+
+<span class="w">       </span><span class="n">v</span><span class="w">                                           </span><span class="n">v</span>
+<span class="p">[</span><span class="n">Ensemble</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">Deduplication</span><span class="p">]</span><span class="w"> </span><span class="p">(</span><span class="nf">Merge</span><span class="w"> </span><span class="n">results</span><span class="p">)</span>
+<span class="w">       </span><span class="o">|</span>
+<span class="w">       </span><span class="n">v</span>
+<span class="p">[</span><span class="n">Reranker</span><span class="w"> </span><span class="p">(</span><span class="n">Cross</span><span class="o">-</span><span class="n">Encoder</span><span class="p">)]</span>
+<span class="o">|</span><span class="w">  </span><span class="n">Input</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="n">Query</span><span class="p">,</span><span class="w"> </span><span class="n">Chunk_1</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="n">Query</span><span class="p">,</span><span class="w"> </span><span class="n">Chunk_2</span><span class="p">)...</span>
+<span class="o">|</span><span class="w">  </span><span class="n">Action</span><span class="o">:</span><span class="w"> </span><span class="n">Deep</span><span class="w"> </span><span class="n">semantic</span><span class="w"> </span><span class="n">scoring</span><span class="w"> </span><span class="p">(</span><span class="n">Slow</span><span class="w"> </span><span class="n">but</span><span class="w"> </span><span class="n">accurate</span><span class="p">)</span>
+<span class="o">|</span><span class="w">  </span><span class="kr">Output</span><span class="o">:</span><span class="w"> </span><span class="n">Top</span><span class="o">-</span><span class="mi">3</span><span class="w"> </span><span class="n">Chunks</span><span class="w"> </span><span class="n">with</span><span class="w"> </span><span class="n">Re</span><span class="o">-</span><span class="nf">rank</span><span class="w"> </span><span class="n">Score</span>
+<span class="w">       </span><span class="o">|</span>
+<span class="w">       </span><span class="n">v</span>
+<span class="p">[</span><span class="n">Context</span><span class="w"> </span><span class="n">Window</span><span class="w"> </span><span class="n">Builder</span><span class="p">]</span>
+<span class="o">|</span><span class="w">  </span><span class="n">Format</span><span class="o">:</span>
+<span class="o">|</span><span class="w">  </span><span class="s">&quot;Context 1 [Ref: Manual Sec 3.1]: ...text...&quot;</span>
+<span class="o">|</span><span class="w">  </span><span class="s">&quot;Context 2 [Ref: DTC DB]: ...text...&quot;</span>
+<span class="w">       </span><span class="o">|</span>
+<span class="w">       </span><span class="n">v</span>
+<span class="p">[</span><span class="n">LLM</span><span class="w"> </span><span class="n">Generation</span><span class="w"> </span><span class="p">(</span><span class="n">Realtime</span><span class="w"> </span><span class="n">API</span><span class="w"> </span><span class="kr">Output</span><span class="p">)]</span>
+</code></pre></div>
+
+<h3 id="32">3.2 关键组件详述</h3>
+<h4 id="321-query-rewriting">3.2.1 查询重写 (Query Rewriting)</h4>
+<p>用户口语通常不规范。</p>
+<ul>
+<li>用户说：“车头有个这种标志” -&gt; 重写为：“车辆前部标志说明”。</li>
+<li>用户说：“怎么连手机” -&gt; 重写为：“蓝牙连接配对步骤”。</li>
+<li>此步骤通常由一个轻量级 LLM (如 GPT-3.5-turbo 或微调后的 SLM) 快速完成，或作为 Agent 的思维链一部分。</li>
+</ul>
+<h4 id="322-hybrid-search">3.2.2 混合检索 (Hybrid Search)</h4>
+<ul>
+<li><strong>向量检索</strong>：擅长回答概念问题（“为什么空调不制冷？”）。</li>
+<li><strong>关键词检索</strong>：擅长回答实体参数（“胎压是多少？”、“保险丝 F34 控制什么？”）。</li>
+<li><strong>权重调节</strong>：通常设为 <code>alpha * Vector_Score + (1-alpha) * BM25_Score</code>。</li>
+</ul>
+<h4 id="323-reranking">3.2.3 重排 (Reranking)</h4>
+<p>向量相似度（Cosine Similarity）只能衡量“大概像”，无法衡量“逻辑蕴含”。Cross-Encoder 重排模型（如 BGE-Reranker）能显著提升 Top-1 准确率，剔除相关但错误的文档（如剔除“后排空调设置”当用户问“前排空调”时）。</p>
+<hr />
+<h2 id="4-realtime-api">4. 与 Realtime API 的集成策略</h2>
+<p>RAG 在此处不再是简单的“请求-响应”，而是<strong>会话中的工具调用（Tool Call）</strong>。</p>
+<h3 id="41-tool-definition">4.1 接口契约 (Tool Definition)</h3>
+<p>在 Realtime API session 初始化时，定义如下工具：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;search_vehicle_manual&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Search the vehicle owner&#39;s manual regarding features, warnings, or maintenance. Use this for &#39;how to&#39;, &#39;what is&#39;, or technical questions.&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;object&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;properties&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;query&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Refined search query&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;category&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;enum&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;feature&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;warning&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;maintenance&quot;</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;requires_visual_match&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;boolean&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Set true if user refers to a visible icon/button&quot;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;query&quot;</span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="42-latency-masking">4.2 延迟掩盖与流式体验 (Latency Masking)</h3>
+<p>RAG 检索耗时（300ms - 800ms）可能导致语音对话出现尴尬的空白。</p>
+<ul>
+<li><strong>Filler Words</strong>: 在检测到 Tool Call 后，Realtime API 可以配置立即输出填充语（如“让我查一下手册…”、“正在检索相关信息…”），填补检索时的静默期。</li>
+<li><strong>Async Processing</strong>: 虽然 Realtime API 目前主要基于事件，但在服务端实现中，应尽可能并行处理检索与音频流的缓冲。</li>
+</ul>
+<h3 id="43">4.3 输出策略：语音摘要 + 屏幕详情</h3>
+<p>车载语音助手不应朗读长篇大论。</p>
+<ul>
+<li>
+<p><strong>System Prompt 令</strong>：
+    &gt; "基于检索到的上下文回答用户。请用<strong>口语化、简短（2句以内）</strong>的语言概括核心步骤或结论。必须在回答末尾明确说明引用来源。如果操作复杂，请引导用户看屏幕。"</p>
+</li>
+<li>
+<p><strong>多模态输出</strong>：</p>
+<ul>
+<li><strong>Audio</strong>: “要调整座椅高度，请使用座椅左侧的水平开关，向上或向下推动。”</li>
+<li><strong>Screen Payload</strong>: 向车机发送结构化数据（JSON），车机端渲染出一张包含图文步骤的卡片，甚至高亮对应的 UI 按钮。</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2 id="5-rag-visual-grounding">5. 多模态 RAG (Visual Grounding)</h2>
+<p>解决“这（指着屏幕/仪表盘）是什么？”的问题。</p>
+<h3 id="51">5.1 视觉检索路径</h3>
+<ol>
+<li><strong>截图/推流</strong>：触发对话时，捕获当前驾驶员视角的帧（DMS/OMS 或中控屏截图）。</li>
+<li><strong>视觉解析 (VLM)</strong>：<ul>
+<li>利用 GPT-4o 的视觉能力，将图像转化为文本描述：“仪表盘上有一个黄色圆圈括起来的感叹号图标”。</li>
+</ul>
+</li>
+<li><strong>文本检索</strong>：将描述作为 Query 输入 RAG 系统。</li>
+<li><strong>图像相似度检索 (可选)</strong>：如果建立过图标库的向量索引（CLIP Embedding），可以直接用图像 Embedding 搜索最相似的图标 ID，获取其含义。</li>
+</ol>
+<h3 id="52">5.2 策略选择</h3>
+<ul>
+<li><strong>路径 A (高精度/高延迟)</strong>：上传图片 -&gt; GPT-4o 分析 -&gt; 生成答案。适合复杂场景（如不认识的机械部件）。</li>
+<li><strong>路径 B (低延迟/限定域)</strong>：本地分类器识别常见 Icon ID -&gt; 查表 -&gt; 生成答案。适合仪表盘 60 个标准警告灯。</li>
+</ul>
+<hr />
+<h2 id="6-safety-compliance">6. 安全、防幻觉与合规 (Safety &amp; Compliance)</h2>
+<h3 id="61-attribution">6.1 引用与归因 (Attribution)</h3>
+<ul>
+<li><strong>强制引用</strong>：模型回答必须包含 <code>[Source: Manual_V2_Pg45]</code>。</li>
+<li><strong>UI 呈现</strong>：车机屏幕上显示引用来源的缩略图，用户点击可跳转到电子手册原文。</li>
+</ul>
+<h3 id="62-refusal-strategy">6.2 拒答机制 (Refusal Strategy)</h3>
+<ul>
+<li><strong>阈值控制</strong>：如果 Rerank 的最高分低于设定阈值（如 0.6），视为“未找到相关信息”。</li>
+<li><strong>安全兜底话术</strong>：“我在当前手册中没有找到关于‘X’的确切说明。为了安全起见，建议您联系售后服务或查看纸质手册索引。”</li>
+<li><strong>禁止推断</strong>：System Prompt 中明确禁止根据常识推断胎压、油号、扭矩等敏感参数。</li>
+</ul>
+<h3 id="63">6.3 法律免责</h3>
+<p>对于涉及维修、改装、急救的回答，必须附带简短的免责声明（可在语音中略去，但必须在屏幕文字中展示）。</p>
+<hr />
+<h2 id="7-performance-optimization">7. 性能优化 (Performance Optimization)</h2>
+<h3 id="71-multi-level-caching">7.1 多级缓存 (Multi-level Caching)</h3>
+<ol>
+<li><strong>L1 本地缓存 (In-Car)</strong>：高频静态问答（Top 50 FAQ，如“怎么连蓝牙”、“胎压复位”）。零延迟，断网可用。</li>
+<li><strong>L2 语义缓存 (Edge/Cloud)</strong>：使用 Redis + Vector。当新 Query 与历史 Query 相似度 &gt; 0.95 时，直接返回历史答案。</li>
+</ol>
+<h3 id="72">7.2 边缘计算与离线能力</h3>
+<p>虽然 Realtime API 依赖云端，但 RAG 索引可以做<strong>切片下发</strong>。</p>
+<ul>
+<li><strong>场景</strong>：车辆进入地下车库。</li>
+<li><strong>方案</strong>：车机本地部署轻量级向量库（如 SQLite-VSS）和 Small Language Model (SLM)。虽然对话流畅度不如云端，但能保证核心故障查询功能的可用性。</li>
+</ul>
+<hr />
+<h2 id="8">8. 本章小结</h2>
+<p>本章构建了一个适应车载严苛环境的 RAG 系统。其核心差异点在于：</p>
+<ol>
+<li><strong>元数据为王</strong>：通过 VIN 码和配置过滤，解决“通用回答”的危害。</li>
+<li><strong>深度解析</strong>：保留表格和警告框的语义结构。</li>
+<li><strong>口语化输出</strong>：适应 Realtime API，区分“听的内容”和“看的内容”。</li>
+<li><strong>安全围栏</strong>：无证据不回答，低置信度即拒答。</li>
+</ol>
+<hr />
+<h2 id="9-exercises">9. 练习题 (Exercises)</h2>
+<h3 id="_1">基础题</h3>
+<details>
+<summary><strong>Q1: 为什么在车载 RAG 中，重排（Reranking）步骤几乎是必须的？</strong></summary>
+<blockquote>
+<p><strong>Hint</strong>: 向量检索（Embedding）通常基于语义相似，而不是逻辑正确。</p>
+<p><strong>答案</strong>: 
+向量检索只能找到“语义相关”的内容。例如用户问“后视镜加热”，向量检索可能召回“后视镜调节”、“后视镜折叠”和“后镜加热”。如果不进行重排，模型可能会被混杂的上下文干扰。Cross-Encoder 重排模型可以精确计算 Query 和 Document 的相关性得分，将真正的“加热说明”排在第一位，并剔除得分低的干扰项，从而大幅减少幻觉风险。</p>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q2: 描述“父子索引（Parent-Child Indexing）”如何解决检索粒度与上下文完整性之间的矛盾。</strong></summary>
+<blockquote>
+<p><strong>Hint</strong>: 容易被搜到的块不一定容易被读懂。</p>
+<p><strong>答案</strong>: 
+矛盾在于：为了精准检索，我们需要很小的分块（Child，包含特定关键词）；但为了让 LLM 理解并生成连贯回答，我们需要较大的上下文（Parent，包含前后文、警告、前置条件）。
+解决方案：索引时对 Child 建立向量索引；检索时，命中 Child 后，取出其对应的 Parent 块喂给 LLM。这样既保证了召回率，又保证了生成的准确性和完整性。</p>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q3: 针对表格数据（例如“轮胎气压表”），最推荐的预处理方式是什么？</strong></summary>
+<blockquote>
+<p><strong>Hint</strong>: 直接转成纯文本通常会丢失行列对应关系。</p>
+<p><strong>答案</strong>: 
+最推荐的方式是将表格转换为 <strong>Markdown 格式</strong> 或 <strong>JSON 对象</strong>，并保留表头信息。对于复杂的跨页表格，需要进行合并处理。如果表格极其复杂，可以生成表格的文本摘要（Summary）用于检索，同时保留原始结构数据用于生成。</p>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q4: Realtime API 是流式的，如何在 RAG 检索耗时较长（例如 2秒）时保持良好的用户体验？</strong></summary>
+<blockquote>
+<p><strong>Hint</strong>: 避免“死寂”。</p>
+<p><strong>答案</strong>: </p>
+<ol>
+<li><strong>注入填充语 (Filler Words)</strong>：Agent 在决定调用搜索工具时，先立即下发一段音频（如“我查一下手册…”）。</li>
+<li><strong>非阻塞式思考</strong>：如果支持，播放填充语的同时后台并行检索。</li>
+<li><strong>视觉反馈</strong>：在车机屏幕上显示加载动画或“正在搜索知识库”的状态。</li>
+</ol>
+</blockquote>
+</details>
+<h3 id="_2">挑战题 (开放性思考)</h3>
+<details>
+<summary><strong>Q5: 设计一个“主动式 RAG”场景。当车辆发生故障码 P0300（多缸失火）时，系统如何在用户开口前做好准备？</strong></summary>
+<blockquote>
+<p><strong>Hint</strong>: 结合车端信号与云端缓存。</p>
+<p><strong>答案</strong>: </p>
+<ol>
+<li><strong>信号触发</strong>：车端网关监测到 DTC P0300 上报。</li>
+<li><strong>预取 (Prefetch)</strong>：车端 Agent 或云端服务立即以 "P0300" 和 "Engine Misfire" 为 Key，触发 RAG 检索。</li>
+<li><strong>缓存热加载</strong>：将检索到的解释、危害等级、建议措施加载到当前会话的 Context 缓存中。</li>
+<li><strong>主动交互</strong>：当用户询问“车怎么抖了”或“那个灯亮了”时，LLM 无需等待检索，直接利用缓存信息秒回，甚至主动发起对话：“我检测到发动机有异常震动（P0300），建议您...”</li>
+</ol>
+</blockquote>
+</details>
+<details>
+<summary><strong>Q6: 假设用户驾驶的是一辆 10 年车龄的老车，手册早已更新多次。如何确保 RAG 回答的是当年那个版本的知识？</strong></summary>
+<blockquote>
+<p><strong>Hint</strong>: 数据版本控制与车辆档案。</p>
+<p><strong>答案</strong>: </p>
+<ol>
+<li><strong>知识库版本化</strong>：在数据入库时，不只是覆盖旧数据，而是建立多版本索引（Versioned Index）。每个 Chunk 必须包含 <code>effective_date_start</code> 和 <code>end</code>，或者关联特定的 <code>model_year</code>。</li>
+<li><strong>车辆画像 (Vehicle Profile)</strong>：会话开始时，注入车辆的 VIN 和出厂日期。</li>
+<li><strong>过滤条件</strong>：检索时强制带上 <code>filter: model_year == 2015</code>。严格禁止跨年代检索，因为老车的物理按键操作可能在新车上变成了屏幕菜单操作。</li>
+</ol>
+</blockquote>
+</details>
+<hr />
+<h2 id="10-gotchas">10. 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="101-pdf">10.1 陷阱：PDF 解析丢失空间语义</h3>
+<ul>
+<li><strong>错误</strong>：直接使用 PyPDF2 等库提取文本。</li>
+<li><strong>后果</strong>：多栏排版（Multi-column layout）被按行读取，导致左栏的文字和右栏的文字混杂在一起，逻辑完全错乱。</li>
+<li><strong>调试技巧</strong>：使支持 Layout Analysis 的工具（如 Microsoft Azure Document Intelligence, Amazon Textract 或开源的 LayoutLM），确保按“阅读顺序（Reading Order）”而非“物理行”提取文本。</li>
+</ul>
+<h3 id="102">10.2 陷阱：过度依赖向量检索匹配专有名词</h3>
+<ul>
+<li><strong>错误</strong>：仅使用 Dense Vector Search 搜索“ISOFIX”。</li>
+<li><strong>后果</strong>：向量模型可能认为“儿童座椅接口”与“ISOFIX”相似，但也可能因为训练数据原因，匹配到“安全带”等宽泛概念，而忽略了包含精准 "ISOFIX" 字符串但语义描述较少的文档块。</li>
+<li><strong>调试技巧</strong>：必须实现混合检索（Hybrid Search）。对于缩写、代码（DTC codes）、专有名词，BM25/Keyword Search 的权重应动态调高。</li>
+</ul>
+<h3 id="103">10.3 陷阱：忽略否定词</h3>
+<ul>
+<li><strong>错误</strong>：用户问“能不能用拖车绳拖拽？”，文档写“<strong>切勿</strong>使用拖车绳拖拽”。</li>
+<li><strong>后果</strong>：由于语义相似度高（都包含“拖车绳”、“拖拽”），该块被召回。如果 LLM 只是摘抄而忽略了“切勿”，会造成严重事故。</li>
+<li><strong>调试技巧</strong>：<ol>
+<li>使用高质量的 Reranker，它对否定逻辑更敏感。</li>
+<li>在 System Prompt 中强调：“特别注意警告（Warning）和禁止（Do not）标志，必须明确告知用户潜在风险。”</li>
+</ol>
+</li>
+</ul>
+<h3 id="104">10.4 陷阱：多模态“张冠李戴”</h3>
+<ul>
+<li><strong>错误</strong>：用户指着中控屏上的“空调按钮”，但摄像头视野较广，同时也拍到了“危险警报灯按钮”。</li>
+<li><strong>后果</strong>：系统错误地解释了危险警报灯。</li>
+<li><strong>调试技巧</strong>：<ol>
+<li>利用 <strong>Screen Reading (Accessibility Tree)</strong> 作为辅助，获取当前屏幕焦点的元素文本，比纯视觉更准。</li>
+<li>如果是物理按键，增加交互确认：“您是指中间红色的那个三角形按钮吗？”</li>
+</ol>
+</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter5.html" class="nav-link prev">← Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</a><a href="chapter7.html" class="nav-link next">Chapter 7｜多模态感知输入设计 (Multimodal Perception Input) →</a></nav>
+        </main>
+    </div>
+</body>
+</html>
