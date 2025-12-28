@@ -2,127 +2,166 @@
 
 ## 1. 开篇段落
 
-车控（Vehicle Control）是车载语音助手最基础也最核心的功能。与聊天机器人不同，车控直接作用于物理世界，涉及座椅移动、温度变化、车窗升降等动作。这要求系统不仅要准确理解意图，还要具备极高的**安全性（Safety）**、**确定性（Determinism）**和**即时性（Real-time Responsiveness）**。
+本章聚焦于语音助手与物理车辆硬件交互的核心机制——**车控工具调用（Vehicle Control ToolCall）**。在 OpenAI Realtime API 和 Agents SDK 的架构下，大模型不仅仅是对话者，更是车辆的“执行中枢”。
 
-本章将详细设计车控子系统的架构。我们将探讨如何定义工具（Tools），设计一个能够处理权限校验、参数清洗和指令执行的“车控网关”，以及如何利用 OpenAI Realtime API 的 Function Calling 能力实现流畅的“边说边做”体验。我们将结合 Agents SDK 的模式，确保主驾、副驾及后排乘客在不同行驶状态下拥有恰当的控制权限。
+车控系统的设计难度在于其连接了两个截然不同的世界：一个是**概率性、模糊语义**的 LLM 世界，另一个是**确定性、硬实时、人命关天**的嵌入式工程世界。
 
 **学习目标**：
-1. 理解车控工具的分级与风险管理策略。
-2. 掌握“车控网关”的中间层设计，实现从 LLM 意图到车辆信号的转换。
-3. 学会设计基于身份（DMS/OMS）和车辆状态（行驶/静止）的动态权限矩阵。
-4. 熟悉在 Realtime API 中处理工具调用延迟与语音反馈的 UX 模式。
+1.  **全景架构**：掌握从 LLM 意图到 CAN/SOA 信号的完整转换链路。
+2.  **防御性设计**：学习如何通过“车控网关”构建鉴权（AuthZ）参数清洗（Sanitization）和安全门禁（Safety Gate）。
+3.  **模糊语义映射**：如何处理“开一点窗”、“调得凉快点”等相对指令与硬件绝对参数之间的转换。
+4.  **状态一致性**：理解乐观更新、最终一致性在车载交互中的应用，以及如何处理硬件故障导致的回滚。
 
 ---
 
-## 2. 系统设计与论述
+## 2. 核心设计论述
 
-### 8.1 工具目录与分级 (Tool Catalog & Classification)
+### 2.1 车控工具的分层架构 (Layered Architecture)
 
-在 OpenAI Realtime API 中，所有的车控能力都通过 `tools` 定义暴露给模型。为了安全和管理的便利，我们需要对工具进行严格的分级。
-
-**Rule of Thumb**：不要创建一个万能的 `set_car_state` 函数。应保持工具的**原子性（Atomicity）**和**语义清晰性**，有助于模型准确选择。
-
-#### 工具分级金字塔
-1.  **L1 绿色（信息/娱乐）**：无物理动作风险极低。
-    *   *例子*：`play_music`, `volume_up`, `switch_ambient_light_color`.
-    *   *策略*：无需二次确认，响应最快。
-2.  **L2 黄色（舒适性/座舱物理）**：改变座舱环境，通常无行车安全风险。
-    *   *例子*：`set_ac_temperature`, `turn_on_seat_heating`, `open_sunroof`.
-    *   *策略*：需要参数校验，建议在执行前或执行中给予语音反馈。
-3.  **L3 红色（高风险/行车相关）**：涉及车辆行驶部件或对外物理边界。
-    *   *例子*：`unlock_doors`, `open_trunk`, `set_drive_mode` (如切换到运动模式).
-    *   *策略*：**必须**进行二次确认（Human-in-the-loop），且在行驶中通常被禁用。
-
-### 8.2 车控网关架构 (Vehicle Control Gateway)
-
-LLM 输出的仅仅是 JSON 参数，不仅不可靠，而且无法直接驱动车辆 CAN/SOA 总线。我们需要一个“车控网关”作为防腐层。
-
-#### 架构数据流图 (ASCII)
+为了解耦模型与硬件，我们采用经典的**三层漏斗模型**设计 ToolCall。
 
 ```ascii
-+---------------------+      +----------------------+
-|  OpenAI Realtime    |      |  Agents SDK Runtime  |
-|  (Session/Voice)    |<---->|  (Orchestrator)      |
-+----------+----------+      +-----------+----------+
-           ^                             |
-           | (Tool Call: Name, Args)     | (1. Route & Validate)
-           v                             v
-+---------------------------------------------------+
-|             Vehicle Control Gateway               |
-+---------------------------------------------------+
-| [Security Layer]                                  |
-|  - AuthZ (Who are you?)                           |
-|  - Safety Check (Is car moving?)                  |
-+---------------------------------------------------+
-| [Normalization Layer]                             |
-|  - "hotter" -> +2 degrees                         |
-|  - "max" -> 32.0 (Model specific)                 |
-+---------------------------------------------------+
-| [Execution Layer]                                 |
-|  - Debounce/Rate Limit (Anti-spam)                |
-|  - Signal Dispatch (SOA/CAN)                      |
-+--------------------------+------------------------+
-                           |
-                           v
-                 +-------------------+
-                 | Vehicle Hardware  |
-                 | (ECU / Domain)    |
-                 +-------------------+
+[ User Voice ] "我有点热"
+      |
+      v
+[ Layer 1: Intent & Semantic Layer ] (LLM / Agent)
+   -> 识别意图: AdjustClimate
+   -> 提取参数: {"direction": "cooler", "magnitude": "small"}
+      |
+      v
+[ Layer 2: Vehicle Control Gateway (VCG) ] (Middleware)
+   -> 语义映射: "cooler" + current(24°C) = target(23°C)
+   -> 安全校验: 检查车辆电源状态、检查儿童锁
+   -> 权限裁决: 副驾是否有权调整全车温度？
+      |
+      v
+[ Layer 3: Vehicle Hardware Abstraction Layer (V-HAL) ] (Embedded)
+   -> 信号转换: target(23°C) -> CAN Message ID 0x123, Data 0x17
+   -> 硬件执行: 发送至空调控制器 (HVAC ECU)
 ```
 
-**关键组件职责**：
-1.  **Security Layer**：拦截非法请求。例如，后排乘客（通过 OMS 识别）试图控制主驾座椅，或者车辆时速 > 0 时试图打开后备箱。
-2.  **Normalization Layer**：处理模糊语义。如果模型输出 `temp="warm"`, 网关应依据当前温度将其转换为具体数值（如 `current + 2`）。
-3.  **Execution Layer**：防抖动（Debounce）。防止用户连续喊“调高调高调高”导致模型在一秒内触发 5 次 API，网关应合并或平滑这些指令。
+### 2.2 工具目录设计与粒度控制 (Granularity & Taxonomy)
 
-### 8.3 动态权限矩阵 (Dynamic Authorization Matrix)
+工具定义的粒度直接决定了 LLM 的理解准确率和令牌消耗。我们推荐**“面向意图”**而非**“面向寄存器”**的定义方式。
 
-利用感知系统（DMS/OMS）的信息，我们不再把所有语音指令视为等同。Agents SDK 在执行工具前，必须通过 `PermissionGuard`。
+#### 2.2.1 推荐的工具定义模式
 
-| 请求者身份 (Who) | 车辆状态 (State) | 操作目标 (What) | 权限动作 (Action) |
-| :--- | :--- | :--- | :--- |
-| **主驾 (Driver)** | 行驶中 (Driving) | 播放音乐 | ✅ 允许 |
-| **主驾 (Driver)** | 行驶中 (Driving) | 看视频/输入法 | ❌ 拒绝 (安全法规) |
-| **副驾 (Passenger)** | 任意 | 主驾座椅调节 | ❌ 拒绝 (干扰驾驶) |
-| **后排 (Rear)** | 任意 | 自己区域空调 | ✅ 允许 |
-| **后排 (Rear)** | 任意 | 全车车窗 | ⚠️ 降级 (仅允许开自己侧) |
-| **儿童 (OMS检测)** | 任意 | 车门/车窗 | ❌ 拒绝 (开启童锁逻辑) |
+1.  **聚合型工具 (Aggregated Tools)**
+    *   *Bad:* `set_fan_speed(level)`, `set_ac_mode(on/off)`, `set_temp(val)` 分散定义。
+    *   *Good:* `adjust_climate(temperature, fan_speed, ac_mode, zone)`。
+    *   *理由:* 用户常说“把空调开到24度，风大点”。聚合工具允许一次 ToolCall 完成多个寄存器修改，减少 Realtime API 的来回交互（Turn-taking）延迟。
 
-**Rule of Thumb**：**“谁主张，谁受益，不干扰他人。”** 除非是明确的全局指令（如“打开全车空调”），否则默认将作用域限制在发出语音的乘客区域（Zone-based Control）。
+2.  **场景化工具 (Scenario Tools)**
+    *   定义一键直达的高级工具，对应车辆的“模式”。
+    *   `enable_nap_mode()`: 同时执行（座椅躺平 + 车窗关闭 + 播放白噪音 + 闹钟设置）。
+    *   `enable_baby_mode()`: 同时执行（音量限制 + 后排车窗锁止 + 空调柔风）。
+    *   *Rule-of-Thumb:* 如果一个操作序列在车机屏幕上有一个专门的“一键启动”按钮，它就应该是一个独立的 Tool。
 
-### 8.4 工具调用与 Realtime 交互模式
+#### 2.2.2 风险分级矩阵 (Expanded)
 
-在 Realtime API 中，工具调用会产生事件流。为了保证体验流畅，需要精心设计交互时序。
+| 等级 | 标识 | 定义 | 典型功能 | 交互/鉴权策略 |
+| :--- | :--- | :--- | :--- | :--- |
+| **L0** | `INFO` | 只读，无物理动作 | 查续航、胎压、说明书 | 直接返回数据，无鉴权 |
+| **L1** | `COMFORT` | 可逆，低干扰 | 音乐、氛围灯、香氛 | 隐式确认（"好的"），全员可用 |
+| **L2** | `PHYSICAL` | 物理动作，低风险 | 座椅加热、空调风向 | 需检查能源状态，建议区分座次权限 |
+| **L3** | `CAUTION` | 物理动作，环境敏感 | 车窗、天窗、遮阳帘 | **环境校验**（雨天/高速），失败需解释 |
+| **L4** | `CRITICAL` | 涉及行驶安全 | 后备、车门锁、大灯 | **强制二次确认** + **零车速门禁** + 仅主驾 |
+| **L5** | `BLOCKED` | 法律/安全禁止 | 油门、转向、换挡 | 不暴露给 LLM，物理层隔离 |
 
-**模式 A：先说后做 (Speak-then-Act)**
-*   **适用**：复杂指令或需要确认的操作。
-*   *流程*：用户：“帮我把副驾座椅加热打开。” -> Agent：“好的，正在为您开启副驾座椅加热。” -> (调用工具) -> (工具返回成功) -> Agent：“已开启。”
-*   *优点*：用户有确定感。
+### 2.3 车控网关 (VCG) 的核心逻辑
 
-**模式 B：边做边说/静默执行 (Act-and-Acknowledge)**
-*   **适用**：低延迟、高频操作（L1 类）。
-*   *流程*：用户：“声音大点。” -> (立即调用工具) -> (音量物理提升) -> Agent (可选简短回复)：“嗯” / “好了”。
-*   *设计要点*：在 Realtime API 中，收到 `response.function_call_arguments.done` 事件时，即可并行下发指令，而不必等待整个音频生成的文本结束。
+VCG 是本系统的核心守门员，它运行在车机的高算力芯片（如 Qualcomm 8155/8295）的 Android/QNX 层。
 
-### 8.5 异常处理与“反悔”机制 (Undo/Cancel)
+#### 2.3.1 影子状态 (Shadow State) 与参数补全
+LLM 说明的指令往往是不完整的（Partial）。VCG 必须维护一份车辆状态的**缓存副本（Shadow State）**。
 
-车控涉及物理改变，必须提供“后悔药”。
+*   **场景**: 用户说“把副驾窗户也关上”。
+*   **Context**: 上一轮对话刚关了主驾窗户。
+*   **逻辑**:
+    1.  LLM 输出: `control_window(seat="passenger", action="close")`。
+    2.  VCG 读取 Shadow State: 发现副驾窗户当前位置 `pos = 50%`。
+    3.  VCG 发现指令缺失目标位置，默认 `action="close"` 意味着 `target_pos = 0%`。
+    4.  如果 Shadow State 显示副驾窗户已经是 `0%`，VCG 直接拦截并返“已关闭”，不发送 CAN 信号（节省总线带宽）。
 
-1.  **Undo 栈**：网关层维护一个短期的作历史栈。
-    *   用户：“太热了。” (系统执行：温度 24 -> 20)
-    *   用户：“不对，太冷了，撤销。”
-    *   系统：执行 `pop()`，恢复到 24 度。
-2.  **Stop 信号**：
-    *   Realtime API 支持**打断（Barge-in）**。当监测到用户在工具执行后的语音流中喊出“停！”、“别打开！”时，需立即触发紧急停止工具（Emergency Stop Tool）。
+#### 2.3.2 模糊语义映射 (Fuzzy Semantic Mapper)
+LLM 擅长处理自然语言，但不擅长处理车企特定的物理量化标准。VCG 需负责“翻译”。
+
+*   **相对量处理**:
+    *   指令: `adjust_temp(delta="hotter")`
+    *   映射: `Target = Current_Temp + Step_Size (e.g., 1.0°C)`
+    *   边界: `Target = min(Target, Max_Limit)`
+*   **程度词处理**:
+    *   指令: `open_window(extent="a little bit")`
+    *   映射: `Target = Current_Pos + 10%` (配置项: `define_little_bit = 10%`)
+    *   指令: `open_window(extent="halfway")`
+    *   映射: `Target = 50%`
+
+### 2.4 安全策略与权限矩阵 (Safety & Authorization)
+
+安全是车载系统的底线。我们采用**拦截器模式 (Interceptor Pattern)**。
+
+#### 2.4.1 动态权限检查伪逻辑
+```text
+function authorize_action(user_role, vehicle_state, tool_name, params):
+    # 1. 全局互斥锁 (e.g. 正在OTA升级中，正在紧急呼叫中)
+    if GlobalLock.is_locked(): return DENY("系统占用中")
+
+    # 2. 身份鉴权
+    if user_role == "GUEST" and tool_name in ["open_trunk", "user_profile"]:
+        return DENY("访客模式无权操作")
+
+    # 3. 驾驶状态门禁
+    if vehicle_state.speed > 0:
+        if tool_name in ["open_trunk", "video_playback", "pairing_bluetooth"]:
+            return DENY("行驶中禁止操作")
+        if tool_name == "open_sunroof" and vehicle_state.speed > 100:
+            return DENY("车速过快，禁止开天窗")
+
+    # 4. 环境感知互斥
+    if tool_name == "open_window" and vehicle_state.rain_sensor == ON:
+        return CONFIRM_REQUIRED("正在下雨，确定要开窗吗？")
+
+    return ALLOW
+```
+
+#### 2.4.2 声区定向与资源绑定
+利用麦克风阵列的**声源定位 (DOA)**，将语音指令绑定到特定座位。
+*   用户（后左位置）：“打开座椅加热”。
+*   Agent 接收到的 ToolCall 参数应自动注入：`seat_id="rear_left"`。
+*   *Gotcha:* 如果 LLM 错误地输出了 `seat_id="driver"`，VCG 应基于 DOA 信号进行二次校验或纠正。
+
+### 2.5 反馈机制与延迟管理
+
+车控动作的执行时间差异巨大（毫秒级到秒级）。
+
+#### 2.5.1 响应策略分类
+1.  **即发即弃 (Fire-and-Forget)**: 用于无副作用、极快的操作。
+    *   *例:* “切歌”。
+    *   *表现:* 语音回复“好的”与此同时发送信号。
+2.  **乐观响应 (Optimistic Response)**: 假设大概率成功。
+    *   *例:* “调高温度”。
+    *   *表现:* 立即回复“已调高”，如果 2秒后 ECU 报错，再异步播报“抱歉，空调刚才响应超时”。
+3.  **事务性响应 (Transactional Wait)**: 必须等待物理确认。
+    *   *例:* “查询胎压”。
+    *   *表现:* 
+        *   LLM: 调用工具 `get_tire_pressure()`。
+        *   (Silence / Filler sound "Hmm...") -> 等待 500ms 信号返回。
+        *   LLM: 拿到结果后生成回复。
+
+#### 2.5.2 处理长延迟 (Long-tail Latency)
+对于如“打开敞篷这种耗时 10秒+ 的操作：
+1.  **阶段 1**: 立即回复“正在打开敞篷...”。
+2.  **阶段 2**: 保持静默，或播放机械音效。
+3.  **阶段 3**: (通过 Agents SDK 的异步事件) 动作完成后，主动推送一条“敞篷已打开”。
 
 ---
 
 ## 3. 本章小结
 
-*   **分级管理**：将车控工具按风险分为 L1/L2/L3，高风险操作必须有人类确认。
-*   **网关模式**：不要让 LLM 直连车辆总线，**车控网关**负责所有权限校验、模糊参数映射和防抖。
-*   **动态权限**：结合 DMS/OMS 的身份识别和车辆行驶状态，构建动态权限矩阵，确保安全。
-*   **交互时序**：根据任务类型选择“先说后做”或“静默执行”，利用 Undo 机制提升容错率。
+*   **网关模式 (Gateway Pattern)**: VCG 是连接 AI 概率世界与工程确定性世界的桥梁，负责清洗、映射和鉴权。
+*   **安全分级**: 必须建立严格的 L0-L5 风险分级，不同等级对应不同的门禁策略（隐式/显式/禁止）。
+*   **状态驱动**: 工具参数应尽量使用“目标状态”（Set Target）而非“动作差值”（Delta），以确保幂等性。
+*   **环境感知**: 车控不仅仅是听懂指令，还要结合车速、雨量、座椅占用等传感器数据做决策。
 
 ---
 
@@ -130,140 +169,136 @@ LLM 输出的仅仅是 JSON 参数，不仅不可靠，而且无法直接驱动�
 
 ### 基础题
 
-**Q1. 工具定义**
-请为“调整空调温”设计一个 Function Schema（描述性定义），包含必要的参数和约束。
+**Q1. 什么是“幽灵操作” (Ghost Operation)？在车控场景中如何通过设计避免它？**
 <details>
-<summary>点击查看参考答案</summary>
-
-```json
-{
-  "name": "set_ac_temperature",
-  "description": "Adjust the air conditioner temperature for a specific zone within the car. Valid range is 16 to 32 degrees Celsius.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "temperature": {
-        "type": "number",
-        "description": "Target temperature in Celsius.",
-        "minimum": 16,
-        "maximum": 32
-      },
-      "zone": {
-        "type": "string",
-        "enum": ["driver", "passenger", "rear_left", "rear_right", "all"],
-        "description": "The specific zone to adjust. Defaults to the zone where the user is sitting if known.",
-        "default": "all"
-      },
-      "mode": {
-          "type": "string",
-          "enum": ["absolute", "relative"],
-          "description": "Whether to set to a specific value or adjust relative to current."
-      }
-    },
-    "required": ["temperature"]
-  }
-}
-```
-**提示**：注意 `zone`（分区）的重要性，以及数值的 `min/max` 约束。
+<summary>点击展开答案提</summary>
+<strong>Hint</strong>: 考虑 VAD（语音活动检测）误触发或模型幻觉。
+<br>
+<strong>Answer</strong>:
+<strong>幽灵操作</strong>指用户未发指令或仅是在闲聊，系统却误识别为指令并执行了物理动作。
+<br>
+<strong>避免设计</strong>:
+1. <strong>唤醒词依赖</strong>: 高风险操作（L3+）必须在带有唤醒词的对话中，ec 降低免唤醒的误触发率。
+2. <strong>二次确认</strong>: 对于敏感操作（开窗/开后备箱），如果置信度低于 0.9，强制反问“您是想打开后备箱吗？”。
+3. <strong>可视化反馈</strong>: 执行前在中控屏弹窗倒计时（Toast），允许用户点击“撤销”。
 </details>
 
-**Q2. 权限判断**
-车辆正在高速公路上以 100km/h 行驶。后排座位上的 6 岁儿童喊道：“打开天窗！”。根据本章的权限策略，系统应如何反应？
+**Q2. 为什么建议使用 <code>adjust_climate(...)</code> 这样一个大工具，而不是拆分成 <code>set_temp</code>, <code>set_fan</code> 等多个小工具？**
 <details>
-<summary>点击查看参考答案</summary>
-
-**系统行为**：拒绝执行。
-**逻辑链路**：
-1. **身份识别**：OMS 识别声源位置为后排，且特征为儿童（Child）。
-2. **状态检查**：车辆状态为 `Driving` (High Speed)。
-3. **策略匹配**：
-   - 规则 A：儿童通常无权控制车窗/天窗（童锁逻辑）。
-   - 规则 B：高速行驶中打开天窗可能产生高风噪或危险。
-4. **输出**：语音助手回复“为了安全，现在不能打开天窗哦”，并未调用 `open_sunroof` 工具。
+<summary>点击展开答案提示</summary>
+<strong>Hint</strong>: 关注 LLM 的推理成本和 Realtime API 的往返迟。
+<br>
+<strong>Answer</strong>:
+1. <strong>减少延迟</strong>: 用户常在以一句话中包含多个指令（“太热了，风大点”）。如果拆分，模型可能需要生成两个独立的 ToolCall，甚至分两轮对话完成，增加等待时间。
+2. <strong>关联逻辑</strong>: 空调各参数是联动的。例如“最大制冷模式”可能意味着同时调整温度最低、风量最大、内循环开启。一个聚合工具更容易在代码层处理这种组合逻辑。
+3. <strong>Token 节省</strong>: 减少工具列表定义的长度（Schema Size），降低 Input Token 消耗。
 </details>
 
-**Q3. Realtime API 事件流**
-在 Realtime API 中，当模型决定调用工具时，客户端会收到哪些关键事件？请按顺序列出。
+**Q3. 在设计“座椅加热”工具时，如何处理“主驾”和“副驾”的区分？**
 <details>
-<summary>点击查看参考答案</summary>
-
-1. `response.item_created`: 确认生成了一个 item。
-2. `response.function_call_arguments.delta`: 流式传输工具参数（JSON 片段）。
-3. `response.function_call_arguments.done`: 参数传输完成，客户端收到完整 JSON。
-4. **(客户端此时执行本地车控逻辑)**
-5. `conversation.item.create`: 客户端将工具执行结果（Tool Output）回传给服务端。
-6. `response.create`: 触发服务端根据执行结果生成后续语音回应。
+<summary>点击展开答案提示</summary>
+<strong>Hint</strong>: 显式参数 vs. 隐式上下文。
+<br>
+<strong>Answer</strong>:
+工具定义中应包含 <code>seat_id</code> 参数 (enum: <code>driver, passenger, rear_left, rear_right</code>)。
+1. <strong>显式指定</strong>: 用户说“打开副驾座椅加热”，LLM 提取 <code>seat_id="passenger"</code>。
+2. <strong>隐式推断</strong>: 用户说“我有点冷”，LLM 输出 <code>seat_id="current_speaker"</code> (或留空)。
+3. <strong>网关解析</strong>: VCG 接收到 "current_speaker" 后，查询音频模块的声源定位 (DOA) 结果，将其替换为实际的物理座位 ID。
 </details>
-
----
 
 ### 挑战题
 
-**Q4. 模糊指令处理**
-用户说：“我觉得有点闷。” 这句话没有明确调用任何工具。请设计一个 Agent 策略，使其能够通过多步推理最终改善车内环境。
+**Q4. (架构设计) 设计一个“自动泊车”的语音交互流程。考虑到这是一个高风险、长耗时的过程，请详细描述从用户发出指令到泊车结束的每一个步骤，包括屏幕交互和异常处理。**
 <details>
-<summary>点击查看参考答案</summary>
-
-**设计思路**：
-1. **意图理解**：“闷”通常意味着空气不流通或温度过高。
-2. **状态查询**：Agent 首先调用 `get_car_status()` 查看当前车窗、空调、外循状态。
-3. **决策逻辑**：
-   - 如果空调关着 -> 建议打开空调。
-   - 如果空调开着但也是内循环 -> 建议切换外循环或微开车窗。
-   - 如果 PM2.5 高 -> 建议打开空气净化。
-4. **交互脚本**：
-   - Agent（思考后）：“现在车内二氧化碳浓度稍高，需要我帮您打开外循环，或者把车窗开条缝吗？”
-   - 用户：“开个缝吧。”
-   - Agent：调用 `control_window(action="vent")`。
+<summary>点击展开答案提示</summary>
+<strong>Hint</strong>: 涉及 ToolCall、GUI 联动、持续监控、用户接管。
+<br>
+<strong>Answer</strong>:
+1. <strong>唤醒与意图</strong>: 用户“帮我泊车”。
+2. <strong>环境检查 (Pre-check)</strong>: VCG 检查车速 < 10km/h，挡位 D/R，且感知系统已识别到车位。
+   - <em>异常分支</em>: 未识别车位 -> 回复“未检测到可用车位，请继续向前行驶”。
+3. <strong>GUI 确认 (Selection)</strong>: 屏幕高亮显示识别到的车位 (A, B, C)。
+   - Bot: “找到 3 个车位，要停在左边这个吗？”
+4. <strong>工具调用</strong>: 用户“对，就这个”。LLM 调用 <code>start_auto_parking(slot_id="A")</code>。
+5. <strong>安全握手 (Handshake)</strong>:
+   - 系统不直接行动，而是弹窗并语音提示：“请松开刹车，双手离开方向盘，随时准备接管。”
+   - 用户确认（可能是语音“好了”，或点击屏幕“开始”）。
+6. <strong>执行与监视 (Execution)</strong>:
+   - 车辆开始运动。
+   - 语音系统进入“实时播报模式”：“正在倒车... 正在避让行人...”。
+7. <strong>完成</strong>: 动作结束，挂 P 挡。Bot: “泊车已完成。”
 </details>
 
-**Q5. 竞态条件 (Race Condition)**
-主驾喊“打开空调”，几乎同时副驾喊“关闭空调”。在 Realtime 系统中如何处理这种并发冲突？
+**Q5. (模糊逻辑) 用户说“把窗户开个缝”。请编写一段伪代码，说明 VCG 如何将其转化为具体的 CAN 信号。假设车窗全关是 0%，全开是 100%。**
 <details>
-<summary>点击查看参考答案</summary>
+<summary>点击展开答案提示</summary>
+<strong>Hint</strong>: 需要读取当前状态，并处理边界情况。
+<br>
+<strong>Answer</strong>:
+<pre><code>
+function handle_open_crack(seat_id):
+    # 1. 定义 "缝" 的大小
+    const CRACK_SIZE = 15% 
+    
+    # 2. 获取当前位置 (Shadow State)
+    current_pos = vehicle.windows[seat_id].position
+    
+    # 3. 计算目标位置
+    # 如果已经在开着，就在当前基础上再开一点？还是保持最小通风位置？
+    # 策略：如果当前几乎全关 (<5%)，设为 15%。
+    # 如果当前已经开很大了 (>20%)，"开个缝"可能意味着"关小到只剩个缝"。
+    
+    if current_pos < 5:
+        target_pos = 15
+    elif current_pos > 20:
+        target_pos = 15  # 意图理解为：关小到缝
+    else:
+        # 已经在缝的状态，可能用户没看清，保持不变或微调
+        target_pos = 15 
+        return Response("窗户已经开了一条缝了")
 
-**策略**：**最后写入胜出（Last Write Wins）** 或 **主驾优先（Driver Priority）**，取决于产品定义。
-**推荐方案（主驾优先）**：
-1. 网关层设置一个极短的时间窗口（例如 500ms）。
-2. 如果窗口内收到相互冲突的指令（开 vs 关），检查声源身份。
-3. 优先执行主驾指令，丢弃副驾指令。
-4. **语音反馈**：明确告知结果。“已为您（主驾）打开空调。”（以此暗示副驾的指令被覆盖）。
+    # 4. 下发指令
+    vehicle.hardware.set_window(seat_id, target_pos)
+    return Response("已打开通风模式")
+</code></pre>
 </details>
 
-**Q6. 容错与回退**
-Realtime API 偶尔会产生幻觉，输出一个不存在的工具参数（例如 `set_temp(val="very_cold")`，但 schema 要求是数字）。网关层应该如何处理这种情况以避免崩溃？
+**Q6. (回滚策略) LLM 调用了 <code>set_seat_heat(level=3)</code>，但底层硬件返回 `ERROR_OVERHEAT_PROTECTION` (过热保护中)。此时 Realtime Session 应当如何处理？**
 <details>
-<summary>点击查看参考答案</summary>
-
-1. **Schema Validation**：在网关入口处使用 JSON Schema Validator（如 Pydantic）强校验。
-2. **Error Catching**：捕获验证错误。
-3. **Self-Correction (自愈)**：
-   - **方案 A（简单）**：向 Realtime API 回传错误信息 `ToolError: "very_cold" is not a valid number`，让模型重试。
-   - **方案 B（启发式）**：网关层做一个简单的映射表（heuristic map），将 `very_cold` 映射为 `18` 度，`hot` 映射为 `28` 度。
-   - **方案 C（询问）**：不执行，直接让 TTS 播报“您想调到多少度？”
-**推荐**：对于实时语音，方案 C 或 A 较好，避免自作聪明导致误操作。
+<summary>点击展开答案提示</summary>
+<strong>Hint</strong>: Tool Output 需要包含错误信息，Agent 需要理解错误并转述。
+<br>
+<strong>Answer</strong>:
+1. <strong>VCG 层</strong>: 捕获硬件错误码，不抛出异常导致程序崩溃，而是封装为结构化结果：
+   <code>{"status": "failed", "error_code": "E_OVERHEAT", "user_msg": "座椅温度过高，已触发保护"}</code>
+2. <strong>Tool Output 注入</strong>: 将上述 JSON 推送回 Realtime API 的会话上下文。
+3. <strong>Agent 推理</strong>: 模型看到 status=failed，不再回复“好的，已开启”，而是根据 `user_msg` 生回复。
+4. <strong>TTS 输出</strong>: “抱歉，检测到座椅温度过高，系统已触发过热保护，暂时无法开启加热。”
 </details>
 
 ---
 
 ## 5. 常见陷阱与错误 (Gotchas)
 
-1.  **无限递归调用**：
-    *   *现象*：模型调用 `get_seat_status`，得到结果后，又觉得信息不够，再次调用同一工具，陷入死循环。
-    *   *调试*：检查 System Prompt，确保明确告知模型拿到结果后应该向用户汇报。在 Agents SDK 中设置 `max_steps` 限制。
+### 5.1 权限穿透 (Privilege Escalation)
+*   **错误**: 简单地将车控 API 暴露给 Agent，没有检查**谁**在说话。
+*   **后果**: 后排顽皮的儿童喊“打开后备箱”，车在高速上行驶时后备箱弹开。
+*   **对策**: 所有的 Critical 工具必须校验 `Speaker_Role` 和 `Vehicle_Speed`。
 
-2.  **默认全车控制的灾难**：
-    *   *现象*：后排乘客说“座椅往后调点”，结果主驾座椅动了，导致驾驶危险。
-    *   *调试*：工具参数 `zone` 必须是 Required，且在 Prompt 中强制要求模型结合声源定位（Source Localization）填充此参数，如果不知道声源，必须反问。
+### 5.2 状态震荡 (State Flapping)
+*   **错误**: 用户说“温度调高”，Gateway 读取当前是 20度，设为 21度。用户紧接着（1秒内）又说“再高点”。
+*   **问题**: 由于 CAN 总线延迟，第二次读取时“当前温度”可能还没更新成 21度，依然读到 20度，结果还是设为 21度。用户感觉系统没反应。
+*   **对策**: **乐观锁定**或**本地预测**。Gateway 在发送指令后，应立即更新本地的 Shadow State 为 21度（即使硬件还没反馈），后续基于 21度计算。
 
-3.  **网络延迟与 CAN 总线延迟不匹配**：
-    *   *现象*：用户说“打开车窗”，Agent 立即回答“好的已打开”，但实际上车窗电机 2 秒后才动。用户会以为系统没听懂，又喊了一遍，结果车窗开了又关。
-    *   *调试*：区分“指令已下发”和“动作已完成”。对于慢速动作，话术应为“正在打开...”，或者使用“乐观更新”策略但保持静默，直到动作开始有物理反馈。
+### 5.3 忽略多模态冲突
+*   **错误**: 用户在看电影，突然想调空调。语音助手回复“好的！已为您调整！”声音巨大，打断了电影氛围。
+*   **对策**: 识别到 `Media_Status == Playing` 时，车控类指令应**静默执行**（不播放 TTS），或者仅以极短的提示音（"Ding"）作为反馈，并在屏幕上显示 Toast。
 
-4.  **音量调节的“爆音”风险**：
-    *   *现象*：模型将 `set_volume(level)` 中的 level 错误理解为百分比（0-100），而车机底层 API 范围是 0-30。模型传入 50，导致最大音量。
-    *   *调试*：网关层必须做**硬限幅（Clamping）**。无论模型传多少，不能超过安全阈值。
+### 5.4 过于自信的“已执行”
+*   **错误**: 只要发送了信号就回复“已打开”。
+*   **后果**: 假如电机故障，窗户没动，用户会觉得系统在撒谎。
+*   **对策**: 对于容易感知失败的动作（如天窗），话术应留有余地，或者使用 Transactional 模式确认硬件状态变化后再回复。
 
-5.  **隐私模式下的冲突**：
-    *   *现象*：车主开启了“代客泊车模式”或“隐私模式”，语音助手仍然允许通过 RAG 搜索或工具调用访问行车记录仪数据。
-    *   *调试*：车控网关必须是所有工具调用的**最终守门员**，不仅校验参数，还要校验当前车辆的全局安全模式状态
+### 5.5 误触发“全车控制”
+*   **错误**: 用户只想开自己的窗户，说“打开窗户”，结果四个窗户全开了。
+*   **对策**: 默认作用域（Scope）应最小化。如果未指定位置，优先操作当前说话人的位置（DOA），而不是全车。必须显式说“打开**所有**窗户”才执行全车操作。
