@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <ul class="nav-list"><li class="active"><a href="index.html">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</a></li><li class=""><a href="chapter1.html">Chapter 1｜范围与需求（Scope & Requirements）</a></li><li class=""><a href="chapter2.html">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</a></li><li class=""><a href="chapter3.html">Chapter 3｜系统总体架构 (System Architecture)</a></li><li class=""><a href="chapter4.html">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</a></li><li class=""><a href="CLAUDE.html">Untitled</a></li></ul>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="realtime-agents-sdk">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</h1>
+<ul>
+<li>文档类型：系统设计 / 架构设计（中文）</li>
+<li>目标读者：车载/座舱/语音/多模态算法、后端、客户端、测试、产品、合规</li>
+<li>最后更新：2025-12-28</li>
+<li>技术基座：</li>
+<li><strong>OpenAI Realtime API</strong>：低延迟、多模态（音频/图像/文本）输入输出，支持语音到语音；可通过 WebRTC/WebSocket/SIP 连接；会话状态与事件流驱动。:contentReference[oaicite:0]{index=0}  </li>
+<li><strong>OpenAI Agents SDK</strong>：面向“任务编排/工具调用/多代理模式”的代码优先 SDK，与语音 Agent 方案结合使用。:contentReference[oaicite:1]{index=1}  </li>
+</ul>
+<hr />
+<h2 id="_1">文件组织（目录结构）</h2>
+<blockquote>
+<p>约定：每章一个文件；章节编号与文件名一一对应。后续如需拆分子系统，可在 <code>chapters/</code> 下做二级目录，但本版本先保持扁平结构。</p>
+</blockquote>
+<ul>
+<li><code>index.md</code>（本文件）：全局目录、阅读指南、章节结构</li>
+<li><code>chapter1.md</code>：范围与需求（What / Why）</li>
+<li><code>chapter2.md</code>：用户体验与对话交互（UX / Conversation）</li>
+<li><code>chapter3.md</code>：系统总体架构（System Architecture）</li>
+<li><code>chapter4.md</code>：Realtime 会话层设计（语音实时对话）</li>
+<li><code>chapter5.md</code>：Agents SDK 编排与多代理设计（Orchestration）</li>
+<li><code>chapter6.md</code>：RAG 检索与知识系统（Knowledge）</li>
+<li><code>chapter7.md</code>：多模态感知输入（DMS/OMS/7V/屏幕读取/音频）</li>
+<li><code>chapter8.md</code>：车控 ToolCall（座椅加热/音乐等）与权限治理</li>
+<li><code>chapter9.md</code>：GUI Agent（车载 App 点餐/购物/预约）</li>
+<li><code>chapter10.md</code>：安全、隐私与合规（Safety &amp; Compliance）</li>
+<li><code>chapter11.md</code>：性能、实时性与降级策略（Latency &amp; Fallback）</li>
+<li><code>chapter12.md</code>：可观测性、评测与 A/B（Observability &amp; Eval）</li>
+<li><code>chapter13.md</code>：部署与运维（车端/边缘/云端）</li>
+<li><code>chapter14.md</code>：测试计划与验收标准（Test &amp; Acceptance）</li>
+<li><code>chapter15.md</code>：附录（术语/接口摘要/对话样例/威胁清单）</li>
+</ul>
+<hr />
+<h2 id="_2">阅读指南建议阅读顺序）</h2>
+<ol>
+<li><strong>chapter1 → chapter2</strong>：先对齐目标、边界、体验原则  </li>
+<li><strong>chapter3 → chapter5</strong>：再落地架构与编排（Realtime + Agents）  </li>
+<li><strong>chapter6 → chapter9</strong>：最后细化 RAG、多模态、车控、GUI 自动化  </li>
+<li><strong>chapter10 → chapter14</strong>：安全合规、性能、监控、测试与上线  </li>
+<li><strong>chapter15</strong>：查阅工具接口与样例</li>
+</ol>
+<hr />
+<h1 id="chapters-sections">章节目录（Chapters &amp; Sections）</h1>
+<blockquote>
+<p>说明：以下为“每章详细 section list”。每个章节文件建议按同名 Heading 落地；如需裁剪，优先保留：需求、架构、关键流程、接口契约、风险与验收。</p>
+</blockquote>
+<hr />
+<h2 id="chapter-1scope-requirements"><a href="chapter1.html">Chapter 1｜范围与需求（Scope &amp; Requirements）</a></h2>
+<h3 id="11">1.1 背景与问题定义</h3>
+<ul>
+<li>1.1.1 车舱语音实时对话的价值（安全、效率、舒适）</li>
+<li>1.1.2 与传统语音助手的差异（实时、连续、可打断、多模态）</li>
+<li>1.1.3 本系统在座舱域的位置（与 IVI、语音前端、感知域、车控域关系）</li>
+</ul>
+<h3 id="12-goals-non-goals">1.2 目标与非目标（Goals / Non-goals）</h3>
+<ul>
+<li>1.2.1 目标清单（“可用/好用/可控/可运营”）</li>
+<li>1.2.2 非目标边界（不做的事，避免范围膨胀）</li>
+<li>1.2.3 成功指标（北极星指标 + 分项指标）</li>
+</ul>
+<h3 id="13-use-cases">1.3 关键业务场景（Use Cases）</h3>
+<ul>
+<li>1.3.1 车控：座椅加热/空调/车窗/音乐/导航</li>
+<li>1.3.2 信息问答：手册、保养、保险、故障灯、常见问题（RAG）</li>
+<li>1.3.3 车内服务：点餐/购物/预约（GUI Agent）</li>
+<li>1.3.4 安全相关：驾驶专注、分心提醒、风险对话限制（DMS）</li>
+<li>1.3.5 多人多轮：主驾/副驾/后排多乘客并发</li>
+</ul>
+<h3 id="14-constraints">1.4 外部约束与假设（Constraints）</h3>
+<ul>
+<li>1.4.1 车规网络、域控算力、功耗与带宽限制</li>
+<li>1.4.2 语音链路：AEC/NS/VAD 的既有方案约束</li>
+<li>1.4.3 摄像头来源：DMS、OMS（后排鱼眼）、7V 环视等</li>
+<li>1.4.4 中控屏读取能力边界（像素流/可访问性树/日志）</li>
+</ul>
+<h3 id="15-functional-requirements">1.5 需求列表（Functional Requirements）</h3>
+<ul>
+<li>1.5.1 实时语音对话（可打断、低延迟、端到）</li>
+<li>1.5.2 RAG 检索（多知识源、可追溯引用）</li>
+<li>1.5.3 多模态输入（音频 + 图像/视频帧 + 屏幕）</li>
+<li>1.5.4 车控 ToolCall（安全门禁、回滚、限流）</li>
+<li>1.5.5 GUI Agent（可视化操作、回放、失败恢复）</li>
+<li>1.5.6 多用户身份与权限（主驾优先级、儿童模式等）</li>
+</ul>
+<h3 id="16-nfr">1.6 非功能需求（NFR）</h3>
+<ul>
+<li>1.6.1 延迟预算（端到端、分段预算）</li>
+<li>1.6.2 可靠性（断网/弱网/服务降级）</li>
+<li>1.6.3 可扩展性（新车型/新 App/新工具接入）</li>
+<li>1.6.4 安全与隐私（合规、脱敏、最小化采集）</li>
+<li>1.6.5 可观测性（trace、录音、工具调用审计）</li>
+</ul>
+<h3 id="17">1.7 风险清单与里程碑</h3>
+<ul>
+<li>1.7.1 技术风险（误触发、误控车、GUI 不稳定）</li>
+<li>1.7.2 产品风险（干扰驾驶、幻觉、不可解释）</li>
+<li>1.7.3 里程碑（PoC → Beta → SOP → 量产）</li>
+</ul>
+<hr />
+<h2 id="chapter-2ux-conversation-design"><a href="chapter2.html">Chapter 2｜用户体验与对话交互（UX &amp; Conversation Design）</a></h2>
+<h3 id="21-experience-principles">2.1 体验原则（Experience Principles）</h3>
+<ul>
+<li>2.1.1 驾驶优先：打扰、可中止、可确认</li>
+<li>2.1.2 低认知负担：短句、结构化、一步到位</li>
+<li>2.1.3 可控可解释：关键动作必须确认 + 可撤销</li>
+</ul>
+<h3 id="22">2.2 语音交互模型</h3>
+<ul>
+<li>2.2.1 唤醒词/免唤醒/方向盘按键策略</li>
+<li>2.2.2 可打断（barge-in）与半双工/全双工策略</li>
+<li>2.2.3 多说话人（主驾/副驾/后排）仲裁与优先级</li>
+</ul>
+<h3 id="23">2.3 多模态对话策略</h3>
+<ul>
+<li>2.3.1 “看见再回答”：摄像头/屏幕信息如何进入对话</li>
+<li>2.3.2 视觉证据的表达（“我看到屏幕上…”的措辞规范）</li>
+<li>2.3.3 误识别与纠错（让用户更正/二次确认）</li>
+</ul>
+<h3 id="24-action-policy">2.4 安全确认与行动策略（Action Policy）</h3>
+<ul>
+<li>2.4.1 高风险动作分级（强制确认/二次确认/口令）</li>
+<li>2.4.2 反悔与撤销（Undo）与安全停止（Stop）</li>
+<li>2.4.3 动作前解释（Why）与动作后回执（What happened）</li>
+</ul>
+<h3 id="25-task-flows">2.5 多轮任务流（Task Flows）</h3>
+<ul>
+<li>2.5.1 车控任务流模板（询问缺参→确认→执行→回执）</li>
+<li>2.5.2 点餐/购物/预约任务流模板（筛→比价→下单→支付）</li>
+<li>2.5.3 RAG 问答流模板（检索→引用→总结→追问）</li>
+</ul>
+<h3 id="26">2.6 失败体验设计</h3>
+<ul>
+<li>2.6.1 弱网/断网提示与替代方案</li>
+<li>2.6.2 工具调用失败（重试/回滚/转人工）</li>
+<li>2.6.3 GUI 操作失败（截图求证/回放/让用户接管）</li>
+</ul>
+<h3 id="27-tone-voice">2.7 语音与人格（Tone &amp; Voice）</h3>
+<ul>
+<li>2.7.1 车载语气规范（简洁、克制、少拟人化）</li>
+<li>2.7.2 禁用话术（避免诱导、避免过度自信）</li>
+<li>2.7.3 多语言与方言策略（可选）</li>
+</ul>
+<hr />
+<h2 id="chapter-3system-architecture"><a href="chapter3.html">Chapter 3｜系统总体架构（System Architecture）</a></h2>
+<h3 id="31">3.1 架构概览（分层 + 数据流）</h3>
+<ul>
+<li>3.1.1 车端：音频前端/感知输入/车控网关/GUI 控制器</li>
+<li>3.1.2 边缘/云：会话编排/检索服务/日志与评测</li>
+<li>3.1.3 OpenAI：Realtime 会话、模型推理、工具调用接口（概念层）</li>
+</ul>
+<h3 id="32-component-responsibilities">3.2 核心组件与职责（Component Responsibilities）</h3>
+<ul>
+<li>3.2.1 Realtime Session Manager（会话生命周期）</li>
+<li>3.2.2 Agent Orchestrator（Agents SDK 运行时）</li>
+<li>3.2.3 RAG Service（检索、重排、引用）</li>
+<li>3.2.4 Perception Adapter（DMS/OMS/7V/屏幕采样适配）</li>
+<li>3.2.5 Vehicle Control Gateway（车控工具与权限）</li>
+<li>3.2.6 GUI Automation Runtime（车载 App 自动化执行器）</li>
+<li>3.2.7 Observability Pipeline（全链路日志与审计）</li>
+</ul>
+<h3 id="33-key-data-models">3.3 关键数据对象（Key Data Models）</h3>
+<ul>
+<li>3.3.1 会话上下文（Session State）</li>
+<li>3.3.2 乘员与身份（Occupant Profile）</li>
+<li>3.3.3 车辆状态（Vehicle State）</li>
+<li>3.3.4 任务状态机（Task State / Steps）</li>
+<li>3.3.5 工具调用记录（Tool Invocation Record）</li>
+</ul>
+<h3 id="34-e2e-flows">3.4 端到端主链路（E2E Flows）</h3>
+<ul>
+<li>3.4.1 语音→意图→工具→回执（车控）</li>
+<li>3.4.2 语音→RAG→回答（知识问答）</li>
+<li>3.4.3 语音→GUI→结果确认（点餐/预约）</li>
+<li>3.4.4 多模态：摄像头/屏幕→对话补充证据</li>
+</ul>
+<h3 id="35-trust-boundaries">3.5 安全边界与信任域（Trust Boundaries）</h3>
+<ul>
+<li>3.5.1 车控与支付的隔离策略</li>
+<li>3.5.2 车端/云端职责划分与最小权限</li>
+<li>3.5.3 数据留存与匿名化边界</li>
+</ul>
+<hr />
+<h2 id="chapter-4realtime-openai-realtime-api"><a href="chapter4.html">Chapter 4｜Realtime 会话层设计（OpenAI Realtime API）</a></h2>
+<blockquote>
+<p>聚焦“低延迟语音对话”的连接、事件、打断、音频策略与会话状态管理。Realtime 支持多模态输入输出，并可通过 WebRTC/WebSocket/SIP 建链。:contentReference[oaicite:2]{index=2}  </p>
+</blockquote>
+<h3 id="41">4.1 接入方式选型</h3>
+<ul>
+<li>4.1.1 WebRTC vs WebSocket：适用场景、优缺点与选型</li>
+<li>4.1.2 车端媒体栈与 SDP/ICE 适配（概念层）</li>
+<li>4.1.3 SIP/呼叫中心模式（如需）与扩展点</li>
+</ul>
+<h3 id="42-session-lifecycle">4.2 会话生命周期（Session Lifecycle）</h3>
+<ul>
+<li>4.2.1 建链与配置下发（voice、VAD、turn-taking、工具列表）</li>
+<li>4.2.2 事件流：输入、生成、工具调用、错误</li>
+<li>4.2.3 会话重连与恢复（断点续聊策略）</li>
+<li>4.2.4 客户端临时密钥/短期凭证策略（避免泄露主 Key）:contentReference[oaicite:3]{index=3}  </li>
+</ul>
+<h3 id="43">4.3 音频链路设计</h3>
+<ul>
+<li>4.3.1 AEC/NS/VAD 与 Realtime 的协同策略</li>
+<li>4.3.2 流式 ASR（可选）与语音到语音（S2S）策略</li>
+<li>4.3.3 播放队、回声控制与音量 ducking</li>
+<li>4.3.4 打断（barge-in）实现：何时停止 TTS、何时保留上下文</li>
+</ul>
+<h3 id="44">4.4 多模态输入注入策略</h3>
+<ul>
+<li>4.4.1 摄像头帧采样节奏（事件触发 vs 周期采样）</li>
+<li>4.4.2 屏幕读取结果的结构化注入（UI 树/文本/截图）</li>
+<li>4.4.3 证据标注：时间戳、来源、可信度、隐私等级</li>
+</ul>
+<h3 id="45">4.5 工具调用与实时对话的协调</h3>
+<ul>
+<li>4.5.1 工具调用时机（先说后做 / 先做后说 / 边说边做）</li>
+<li>4.5.2 工具执行中的“语音占用”与进度播报</li>
+<li>4.5.3 工具返回结构：可口语化总结 + 机器可读结果</li>
+</ul>
+<h3 id="46">4.6 错误处理与限流</h3>
+<ul>
+<li>4.6.1 过载保护（音频/图像输入限频）</li>
+<li>4.6.2 异常事件分类（网络/媒体/模型/工具）</li>
+<li>4.6.3 重试与退避（实时链路特殊规则）</li>
+</ul>
+<hr />
+<h2 id="chapter-5agents-sdk-orchestration"><a href="chapter5.html">Chapter 5｜Agents SDK 编排与多代理设计（Orchestration）</a></h2>
+<blockquote>
+<p>聚焦“任务拆解、路由、工具治理、长任务状态机”，以 Agents SDK 的代码优先方式实现可维护工作流与模式。:contentReference[oaicite:4]{index=4}  </p>
+</blockquote>
+<h3 id="51-agent-topology">5.1 代理体系结构（Agent Topology）</h3>
+<ul>
+<li>5.1.1 单代理 vs 多代理：适用条件与复杂度</li>
+<li>5.1.2 推荐拓扑：Supervisor + 专家代理（RAG/车控/GUI/安全）</li>
+<li>5.1.3 Handoff（交接）与“控制权”管理</li>
+</ul>
+<h3 id="52-routing">5.2 路由与意图识别（Routing）</h3>
+<ul>
+<li>5.2.1 车控意图路由</li>
+<li>5.2.2 知识问答路由（RAG）</li>
+<li>5.2.3 App 服务路由（GUI）</li>
+<li>5.2.4 安全策略路由（驾驶中限制）</li>
+</ul>
+<h3 id="53-state-memory">5.3 状态管理与记忆（State &amp; Memory）</h3>
+<ul>
+<li>5.3.1 会话短期记忆（本次旅程）</li>
+<li>5.3.2 车主偏好（长期记忆/用户画像）与隐私</li>
+<li>5.3.3 任务状态机（可恢复、可回放）</li>
+</ul>
+<h3 id="54-common-patterns">5.4 工具编排模式（Common Patterns）</h3>
+<ul>
+<li>5.4.1 Deterministic flow（可控流程）</li>
+<li>5.4.2 Planner-Executor（计划-执行）</li>
+<li>5.4.3 反思/校验（Verifier）在高风险动作中的使用</li>
+<li>5.4.4 并行工具与竞速（并发检索/并发比价）</li>
+</ul>
+<h3 id="55-guardrails">5.5 安全护栏（Guardrails）</h3>
+<ul>
+<li>5.5.1 工具白名单与参数校验</li>
+<li>5.5.2 高风险动作的强制确认策略</li>
+<li>5.5.3 事实性与引用要求（RAG 必须引用）</li>
+</ul>
+<h3 id="56-realtime">5.6 与 Realtime 的耦合点</h3>
+<ul>
+<li>5.6.1 Realtime 的事件流如何驱动 Agent</li>
+<li>5.6.2 语音流中的中间意图（partial）如何处理</li>
+<li>5.6.3 工具执行回执如何回到语音输出</li>
+</ul>
+<hr />
+<h2 id="chapter-6rag-rag-knowledge"><a href="chapter6.html">Chapter 6｜RAG 检索与知识系统设计（RAG &amp; Knowledge）</a></h2>
+<h3 id="61">6.1 知识范围与数据源</h3>
+<ul>
+<li>6.1.1 车辆用户手册、功能说明、故障码与提示灯</li>
+<li>6.1.2 车机 App 帮助中心、权益/套餐说明</li>
+<li>6.1.3 服务生态：餐饮/电商/出行/酒店/票务（可插拔）</li>
+<li>6.1.4 实时数据：车辆状态、导航/路况（只做“事实源”，不入库）</li>
+</ul>
+<h3 id="62-ingestion-pipeline">6.2 数据处理流水线（Ingestion Pipeline）</h3>
+<ul>
+<li>6.2.1 文档采集、清洗、版本管理</li>
+<li>6.2.2 分块策略（章节/语义块/表格）</li>
+<li>6.2.3 元数据（车型、年份、市场、语言、版本、适用条件）</li>
+</ul>
+<h3 id="63-retrieval-architecture">6.3 检索架构（Retrieval Architecture）</h3>
+<ul>
+<li>6.3.1 向量检索 + 关键词检索的混合策略</li>
+<li>6.3.2 重排（Rerank）与去重</li>
+<li>6.3.3 引用生成（Citations）与可追溯性</li>
+</ul>
+<h3 id="64">6.4 车载场景优化</h3>
+<ul>
+<li>6.4.1 延迟优化：本地缓存、边缘索引、热数据预取</li>
+<li>6.4.2 弱网/离线：本地“救急知识包”</li>
+<li>6.4.3 多语言与地区差异（法规/配置差异）</li>
+</ul>
+<h3 id="65-rag">6.5 RAG 与多模态融合</h3>
+<ul>
+<li>6.5.1 “屏幕看到的设置页”→ 定位到手册章节</li>
+<li>6.5.2 “告警灯/仪表提示”→ 故障解释与建议</li>
+<li>6.5.3 视觉证据与文本证据的冲突处理</li>
+</ul>
+<h3 id="66">6.6 防幻觉机制</h3>
+<ul>
+<li>6.6.1 无证据不结论（Answer with evidence）</li>
+<li>6.6.2 不确定性表达模板（可读且不吓人）</li>
+<li>6.6.3 召回不足时的追问策略</li>
+</ul>
+<hr />
+<h2 id="chapter-7dms-oms-7v"><a href="chapter7.html">Chapter 7｜多模态感知输入设计（DMS / OMS / 7V / 屏幕读取 / 音频）</a></h2>
+<h3 id="71">7.1 输入源清单与信号定义</h3>
+<ul>
+<li>7.1.1 音频：麦克风阵列、声学事件（鸣笛/警报）</li>
+<li>7.1.2 DMS：驾驶员视线/头姿/疲劳/分心事件</li>
+<li>7.1.3 OMS：后排鱼眼（乘员数量、童/宠物、姿态）</li>
+<li>7.1.4 7V：环视/侧后/前视等（按车型配置可选）</li>
+<li>7.1.5 中控屏读取：截图、OCR（可选）、可访问性树、系统日志</li>
+</ul>
+<h3 id="72">7.2 采样、触发与带宽预算</h3>
+<ul>
+<li>7.2.1 周期采样（低频）与事件触发（高价值）</li>
+<li>7.2.2 优先级队列（安全相关 &gt; 任务相关 &gt; 体验相关）</li>
+<li>7.2.3 画面脱敏与区域裁剪（仅发送必要 ROI）</li>
+</ul>
+<h3 id="73-perception-adapter">7.3 感知到语义的中间层（Perception Adapter）</h3>
+<ul>
+<li>7.3.1 统一事件协议（PerceptionEvent）</li>
+<li>7.3.2 置信度与冲突合并</li>
+<li>7.3.3 时间同步（车端时钟、帧时间戳）</li>
+</ul>
+<h3 id="74-screen-reading">7.4 屏幕读取（Screen Reading）方案</h3>
+<ul>
+<li>7.4.1 三种路径：UI 树 &gt; 文本日志 &gt; 像素截图</li>
+<li>7.4.2 权限与隔离：只读、不可越权</li>
+<li>7.4.3 内容归一化：控件语义、焦点、可点击性</li>
+</ul>
+<h3 id="75">7.5 驾驶安全联动策略</h3>
+<ul>
+<li>7.5.1 DMS 触发“对话降噪”（减少输出/缩短回答）</li>
+<li>7.5.2 高风险路况：限制 GUI 操作与复杂任务</li>
+<li>7.5.3 儿童/后排模式：OMS 决策策略</li>
+</ul>
+<h3 id="76">7.6 数据最小化与隐私</h3>
+<ul>
+<li>7.6.1 默认不上传原始视频（只上传事件/摘要）</li>
+<li>7.6.2 用户授权与可撤回</li>
+<li>7.6.3 留存策略与匿名化</li>
+</ul>
+<hr />
+<h2 id="chapter-8-toolcall-vehicle-control-tools"><a href="chapter8.html">Chapter 8｜车控 ToolCall 设计（Vehicle Control Tools）</a></h2>
+<h3 id="81-tool-catalog">8.1 工具目录与分级（Tool Catalog）</h3>
+<ul>
+<li>8.1.1 舒适性：座椅加热/通风/空调/氛围灯</li>
+<li>8.1.2 娱乐：音乐播放/音量/频道/收藏</li>
+<li>8.1.3 车窗/门锁（如允许）与更高风险动作分级</li>
+<li>8.1.4 导航/电话（可选）</li>
+</ul>
+<h3 id="82-vehicle-control-gateway">8.2 车控网关（Vehicle Control Gateway）</h3>
+<ul>
+<li>8.2.1 统一 API：抽象不同车型/供应商差异</li>
+<li>8.2.2 幂等性与回滚（Undo/Cancel）</li>
+<li>8.2.3 限流与熔断（防抖、防刷）</li>
+</ul>
+<h3 id="83-authorization">8.3 权限与安全策略（Authorization）</h3>
+<ul>
+<li>8.3.1 主驾/副驾/后排的权限矩阵</li>
+<li>8.3.2 驾驶状态与车速门禁（行驶中限制）</li>
+<li>8.3.3 二次确认与口令（高风险动作）</li>
+<li>8.3.4 审计日志：谁在何时让系统做了什么</li>
+</ul>
+<h3 id="84-validation">8.4 参数校验与安全边界（Validation）</h3>
+<ul>
+<li>8.4.1 参数范围与单位（温度、档位）</li>
+<li>8.4.2 组合约束（例如：儿童座椅在用时的限制）</li>
+<li>8.4.3 失败回退：默认保持现状 + 提示用户手动</li>
+</ul>
+<h3 id="85-user-feedback">8.5 用户可感知回执（User Feedback）</h3>
+<ul>
+<li>8.5.1 执行前复述</li>
+<li>8.5.2 执行后确认（状态读回）</li>
+<li>8.5.3 异常解释与替代建议</li>
+</ul>
+<hr />
+<h2 id="chapter-9gui-agent-app"><a href="chapter9.html">Chapter 9｜GUI Agent：车载 App 自动化（点餐/购物/预约）</a></h2>
+<h3 id="91">9.1 目标与边界</h3>
+<ul>
+<li>9.1.1 为什么用 GUI Agent（生态异构、缺少统一 API）</li>
+<li>9.1.2 明确边界：不绕过登录/支付安全、不做灰产行为</li>
+<li>9.1.3 人机协同：关键步骤必须让用户确认</li>
+</ul>
+<h3 id="92-gui-agent">9.2 GUI Agent 运行时架构</h3>
+<ul>
+<li>9.2.1 输入：屏幕读取（UI 树/截图）+ 用户语音</li>
+<li>9.2.2 输出：点击/滑动/输入/返回/切换 Tab</li>
+<li>9.2.3 回放与可追溯（step-by-step trace）</li>
+</ul>
+<h3 id="93-app-app-adaptation">9.3 App 适配策略（App Adaptation）</h3>
+<ul>
+<li>9.3.1 通用能力：搜索、筛选、排序、加入购物车</li>
+<li>9.3.2 业务插件：外卖/电商/挂号/洗车/充电</li>
+<li>9.3.3 组件识别：按钮、列表、弹窗、验证码提示</li>
+</ul>
+<h3 id="94-conversation-ui">9.4 任务分解与对话（Conversation + UI）</h3>
+<ul>
+<li>9.4.1 缺参补齐：地址/时间/人数/口味偏好</li>
+<li>9.4.2 多方案对比：3 个候选 + 解释差异</li>
+<li>9.4.3 最终确认：金额、配送费、预约时间、取消政策</li>
+</ul>
+<h3 id="95">9.5 支付与敏感信息处理</h3>
+<ul>
+<li>9.5.1 输入法与密码：必须用户接管</li>
+<li>9.5.2 订单提交前的强制复核</li>
+<li>9.5.3 订单结果读回与失败补救</li>
+</ul>
+<h3 id="96">9.6 稳定性与失败恢复</h3>
+<ul>
+<li>9.6.1 UI 变化：元素找不到时的重试策略</li>
+<li>9.6.2 异常弹窗：权限、定位、网络、升级提示</li>
+<li>9.6.3 超时与“交还控制权”机制</li>
+</ul>
+<hr />
+<h2 id="chapter-10safety-privacy-compliance"><a href="chapter10.html">Chapter 10｜安全、隐私与合规（Safety, Privacy, Compliance）</a></h2>
+<h3 id="101-threat-model">10.1 威胁建模（Threat Model）</h3>
+<ul>
+<li>10.1.1 误控车风险</li>
+<li>10.1.2 诱导下单/错误下单风险</li>
+<li>10.1.3 隐私泄露（音视频、位置、账号）</li>
+</ul>
+<h3 id="102-data-governance">10.2 数据治理（Data Governance）</h3>
+<ul>
+<li>10.2.1 采集最小化与目的限定</li>
+<li>10.2.2 脱敏与匿名化（车牌、人脸、联系人）</li>
+<li>10.2.3 留存周期与用户删除权</li>
+</ul>
+<h3 id="103-driver-safety">10.3 驾驶安全策略（Driver Safety）</h3>
+<ul>
+<li>10.3.1 DMS 驱动的对话限制（分心时缩短/拒绝复杂任务）</li>
+<li>10.3.2 高风险动作与行驶状态联动</li>
+<li>10.3.3 事故/紧急事件优先级（中断所有非关键任务）</li>
+</ul>
+<h3 id="104">10.4 内容安全与政策</h3>
+<ul>
+<li>10.4.1 不当内容处理（暴力、仇恨、成人等）</li>
+<li>10.4.2 违法/高危指令拒绝与引导</li>
+<li>10.4.3 免责声明与边界表达（尤其是维修/医疗/法律）</li>
+</ul>
+<h3 id="105">10.5 审计与可追溯</h3>
+<ul>
+<li>10.5.1 工具调用审计（谁、何时、做了什么）</li>
+<li>10.5.2 GUI 步骤审计（截图 hash / UI 树快照）</li>
+<li>10.5.3 事后分析与复盘流程</li>
+</ul>
+<hr />
+<h2 id="chapter-11latency-resilience"><a href="chapter11.html">Chapter 11｜性能、实时性与降级策略（Latency &amp; Resilience）</a></h2>
+<h3 id="111">11.1 延迟预算与指标体系</h3>
+<ul>
+<li>11.1.1 端到端延迟定义（用户开口→系统回应）</li>
+<li>11.1.2 分段指标：采集、编码、传输、推理、合成、播放</li>
+<li>11.1.3 体验指标首字延迟、可打断响应、卡顿率</li>
+</ul>
+<h3 id="112">11.2 性能优化策略</h3>
+<ul>
+<li>11.2.1 语音：分段输出、短句优先</li>
+<li>11.2.2 多模态：只发 ROI、只在需要时发帧</li>
+<li>11.2.3 RAG：缓存、预取、索引分层</li>
+</ul>
+<h3 id="113">11.3 弱网/断网/不可用降级</h3>
+<ul>
+<li>11.3.1 本地兜底：固定指令、车控离线集</li>
+<li>11.3.2 RAG 离线知识包（车主手册精简版）</li>
+<li>11.3.3 GUI 任务降级为“语音引导人工操作”</li>
+</ul>
+<h3 id="114">11.4 可靠性工程</h3>
+<ul>
+<li>11.4.1 重试策略（区分可重试/不可重试）</li>
+<li>11.4.2 熔断与隔离（GUI 与车控隔离）</li>
+<li>11.4.3 灾备与多区域（如云端依赖）</li>
+</ul>
+<hr />
+<h2 id="chapter-12observability-evals"><a href="chapter12.html">Chapter 12｜可观测性、评测与持续迭代（Observability &amp; Evals）</a></h2>
+<h3 id="121-tracing">12.1 日志与链路追踪（Tracing）</h3>
+<ul>
+<li>12.1.1 会话级 trace（事件流、延迟、错误）</li>
+<li>12.1.2 工具调用 trace（输入/输出/耗时/结果码）</li>
+<li>12.1.3 GUI trace（每步动作 + UI 快照）</li>
+</ul>
+<h3 id="122-metrics">12.2 指标面板（Metrics）</h3>
+<ul>
+<li>12.2.1 语音指标：打断成功率、识别错误、静音率</li>
+<li>12.2.2 RAG 指标：命中率、引用覆盖率、无证据回答率</li>
+<li>12.2.3 车控指标：误触发率、撤销率、失败率</li>
+<li>12.2.4 GUI 指标：任务成功率、平均步数、超时率</li>
+</ul>
+<h3 id="123-eval-replay">12.3 离线评测与回放（Eval &amp; Replay）</h3>
+<ul>
+<li>12.3.1 场景集与黄金答案（含引用）</li>
+<li>12.3.2 录音/截图回放框架（脱敏后）</li>
+<li>12.3.3 回归测试与门禁</li>
+</ul>
+<h3 id="124-ab">12.4 在线实验（A/B）</h3>
+<ul>
+<li>12.4.1 路由策略 A/B</li>
+<li>12.4.2 提示词/工具策略 A/B</li>
+<li>12.4.3 安全阈值（DMS）参数 A/B</li>
+</ul>
+<h3 id="125">12.5 运营闭环</h3>
+<ul>
+<li>12.5.1 用户反馈收集与归因</li>
+<li>12.5.2 缺陷分级与修复 SLA</li>
+<li>12.5.3 数据驱动的知识更新（RAG 文档版本）</li>
+</ul>
+<hr />
+<h2 id="chapter-13deployment-ops"><a href="chapter13.html">Chapter 13｜部署与运维（Deployment &amp; Ops）</a></h2>
+<h3 id="131">13.1 部署形态</h3>
+<ul>
+<li>13.1.1 车端部署（语音前端、车控网关、屏幕读取）</li>
+<li>13.1.2 边缘部署（检索缓存、策略下发）</li>
+<li>13.1.3 云端部署（编排、知识、观测、评测）</li>
+</ul>
+<h3 id="132">13.2 密钥与配置管理</h3>
+<ul>
+<li>13.2.1 车端安全存储与轮换</li>
+<li>13.2.2 会话临时凭证发放（服务端签发）</li>
+<li>13.2.3 动态配置（车型能力矩阵、工具开关）</li>
+</ul>
+<h3 id="133">13.3 版本管理与灰度</h3>
+<ul>
+<li>13.3.1 模型/提示词/工具版本化</li>
+<li>13.3.2 灰度策略与回滚</li>
+<li>13.3.3 兼容性：新旧车机 OS / App 版本</li>
+</ul>
+<h3 id="134">13.4 运维与应急</h3>
+<ul>
+<li>13.4.1 事故处理流程（误控车/误下单/隐私事件）</li>
+<li>13.4.2 告警体系（延迟、失败率、异常峰值）</li>
+<li>13.4.3 远程诊断与现场复现</li>
+</ul>
+<hr />
+<h2 id="chapter-14test-acceptance"><a href="chapter14.html">Chapter 14｜测试计划与验收标准（Test &amp; Acceptance）</a></h2>
+<h3 id="141">14.1 测试范围与策略</h3>
+<ul>
+<li>14.1.1 单元测试（工具参数校验、状态机）</li>
+<li>14.1.2 集成测试（Realtime 事件流、Agent 编排）</li>
+<li>14.1.3 端到端测试（车控、RAG、GUI）</li>
+<li>14.1.4 车规场景测试（噪声、回声、方言、车速变化）</li>
+</ul>
+<h3 id="142-scenario-suite">14.2 场景用例库（Scenario Suite）</h3>
+<ul>
+<li>14.2.1 车控核心用例</li>
+<li>14.2.2 RAG 问答核心用例（含引用校验）</li>
+<li>14.2.3 GUI 点餐/购物/预约用例</li>
+<li>14.2.4 DMS/OMS 发限制用例</li>
+</ul>
+<h3 id="143-acceptance-criteria">14.3 验收指标（Acceptance Criteria）</h3>
+<ul>
+<li>14.3.1 延迟门槛</li>
+<li>14.3.2 成功率门槛</li>
+<li>14.3.3 误控车/误下单上限</li>
+<li>14.3.4 隐私与合规检查项通过率</li>
+</ul>
+<h3 id="144-go-live-checklist">14.4 上线前检查清单（Go-Live Checklist）</h3>
+<ul>
+<li>14.4.1 安全开关与回滚预案</li>
+<li>14.4.2 监控与告警就绪</li>
+<li>14.4.3 数据留存与脱敏验证</li>
+<li>14.4.4 紧急停止与人工接管路径演练</li>
+</ul>
+<hr />
+<h2 id="chapter-15appendix"><a href="chapter15.html">Chapter 15｜附录（Appendix）</a></h2>
+<h3 id="151">15.1 术语表</h3>
+<ul>
+<li>DMS/OMS/7V、IVI、AEC/NS/VAD、RAG、ToolCall、GUI Agent 等</li>
+</ul>
+<h3 id="152-contract-summary">15.2 接口摘要（Contract Summary）</h3>
+<ul>
+<li>15.2.1 工具清单（车控工具、检索工具、GUI 工具）</li>
+<li>15.2.2 事件协议（PerceptionEvent、ToolResult、AuditEvent）</li>
+<li>15.2.3 错误码与重试建议</li>
+</ul>
+<h3 id="153">15.3 提示词与策略模板（不放大段代码）</h3>
+<ul>
+<li>15.3.1 车控确认模板</li>
+<li>15.3.2 RAG 引用模板</li>
+<li>15.3.3 GUI 步骤确认模板</li>
+<li>15.3.4 安全拒绝模板</li>
+</ul>
+<h3 id="154-conversation-examples">15.4 样例对话（Conversation Examples）</h3>
+<ul>
+<li>15.4.1 行驶中：座椅加热 + 音</li>
+<li>15.4.2 仪表提示灯：解释 + 建议</li>
+<li>15.4.3 点餐：筛选 + 下单前确认</li>
+<li>15.4.4 DMS 分心：限制复杂任务</li>
+</ul>
+<h3 id="155-one-page">15.5 风险与对策清单（One-page）</h3>
+<ul>
+<li>高风险动作清单</li>
+<li>数据敏感分级</li>
+<li>常见故障与排查路径</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter1.html" class="nav-link next">Chapter 1｜范围与需求（Scope & Requirements） →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

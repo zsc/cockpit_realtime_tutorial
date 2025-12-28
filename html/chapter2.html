@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <ul class="nav-list"><li class=""><a href="index.html">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</a></li><li class=""><a href="chapter1.html">Chapter 1｜范围与需求（Scope & Requirements）</a></li><li class="active"><a href="chapter2.html">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</a></li><li class=""><a href="chapter3.html">Chapter 3｜系统总体架构 (System Architecture)</a></li><li class=""><a href="chapter4.html">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</a></li><li class=""><a href="CLAUDE.html">Untitled</a></li></ul>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-2-ux-conversation-design">Chapter 2｜用户体验与对话交互 (UX &amp; Conversation Design)</h1>
+<h2 id="1">1. 开篇段落</h2>
+<p>本章是整个座舱语音机器人系统的灵魂所在。技术架构决定了机器人“能做什么”，而交互设计决定了用户“愿不愿意用”。在时速 120km/h 的移动封闭空间内，任何一次错误的交互（如误解指令、延迟过高、喋喋不休）都可能转化为驾驶员的怒气，甚至安全事故。</p>
+<p>本章将深度拆解基于 <strong>OpenAI Realtime API</strong> 的流式对话体验。我们将不再满足于传统的“一问一答”，而是追求一种<strong>“共同在场” (Co-presence)</strong> 的体验——即 AI 像副驾一样，既能听到你说什么，也能看到你看到的（路况/屏幕），并能感知你的情绪和状态。我们将重点讨论如何利用 Realtime 的低延迟特性来处理<strong>话转换 (Turn-taking)</strong>、<strong>多模态打断</strong>以及<strong>高风险动作的原子性确认</strong>。</p>
+<p><strong>学习目标</strong>：</p>
+<ol>
+<li><strong>深入理解车载认知模型</strong>：如何在毫秒级时间内评估驾驶员的负荷并动态调整 AI 的行为。</li>
+<li><strong>掌握 Realtime 流式交互范式</strong>：从 VAD 策略、回声消除到智能打断的完整链路设计。</li>
+<li><strong>构建多模态语义场</strong>：利用摄像头（DMS/OMS/7V）和屏幕上下文（UI Tree）解决指代消歧（Grounding）。</li>
+<li><strong>设计容错与降级机制</strong>：在网络抖动或感知失败时的优雅降级策略。</li>
+</ol>
+<hr />
+<h2 id="2">2. 体验原则：驾驶优先与认知负荷</h2>
+<p>在设计对话之前，我们必须量化“打扰”。</p>
+<h3 id="21-cognitive-load-pyramid">2.1 认知负荷金字塔 (Cognitive Load Pyramid)</h3>
+<p>车载交互设计的核心矛盾是：<strong>丰富的功能 vs 有限的注意力</strong>。</p>
+<div class="codehilite"><pre><span></span><code>      [ 红色区域 ]
+     /  高风险区  \   &lt;-- 倒车、变道、大曲率过弯、暴雨
+    /--------------\
+   [  黄色区域    ]  &lt;-- 拥堵跟车、红绿灯路、导航指令密集区
+  /------------------\
+ [    绿色区域      ] &lt;-- 高速巡航(开ACC)、停车休息、充电中
+/----------------------\
+</code></pre></div>
+
+<ul>
+<li>
+<p><strong>原则 1：动态冗余度 (Dynamic Verbosity)</strong></p>
+<ul>
+<li><strong>绿色区域</strong>：AI 可以稍微啰嗦，提供更丰富的信息（如介绍餐厅评分、念读新闻）。</li>
+<li><strong>红色区域</strong>：AI 必须<strong>“闭嘴”</strong>或<strong>“极简”</strong>。如果用户在倒车时问“明天天气”，AI 应暂缓回答或只报“晴天”，绝对不能念大段文字。</li>
+<li><em>实现提示</em>：系统需订阅车辆 CAN 总线的 <code>Gear_State</code> (档位)、<code>Steering_Angle</code> (转角) 和 <code>Speed</code> (车速) 以及 <code>Wiper_Status</code> (雨刮) 作为 Realtime Session 的 Context 变量，动态调整 Prompt 的 <code>instruction</code>（例如注入：“User is in high cognitive load, be extremely concise.”）。</li>
+</ul>
+</li>
+<li>
+<p><strong>原则 2：扫视即得 (Glanceability)</strong></p>
+<ul>
+<li>语音对话必须配合屏幕辅助。当 AI 说“为您找到这几个充电桩”时，屏幕显示列的停留时间应足够长，字体应足够大。</li>
+<li><strong>2秒法则</strong>：驾驶员视线离开路面不能超过 2 秒。所有 UI 反馈必须在 2 秒内可被理解。</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2 id="3-">3. 语音交互模型：超越“指令-响应”</h2>
+<p>利用 OpenAI Realtime API，我们旨在构建 <strong>“类人全双工” (Pseudo-Full-Duplex)</strong> 体验。</p>
+<h3 id="31">3.1 听觉链路的“三重门”</h3>
+<p>为了让 AI 听得准且反应快，需要处理好端侧与云侧的配合：</p>
+<ol>
+<li>
+<p><strong>第一道门：回声消除 (AEC) 与降噪 (NS)</strong></p>
+<ul>
+<li><em>问题</em>：车内是一个巨大的回声腔（玻璃反射），且伴随风噪、胎噪、音乐声。</li>
+<li><em>设计</em>：Realtime API 能够处理一定的环境音，但<strong>强烈建议</strong>在车端 DSP（数字信号处理）层先做硬件级 AEC。</li>
+<li><em>Reference Signal</em>：车机发出的所有声音（音乐、TTS、导航音）必须作为参考信号（Reference）喂给 AEC 模块，从麦克风输入中“减去”。否则，AI 会听到自己说的话（自激）。</li>
+</ul>
+</li>
+<li>
+<p><strong>二道门：语音活动检测 (VAD)</strong></p>
+<ul>
+<li><em>Server VAD vs. Client VAD</em>：<ul>
+<li><strong>Server VAD (OpenAI)</strong>：准确率高，能区分人声和背景音。建议作为默认方案。</li>
+<li><strong>Client VAD (本地)</strong>：用于省流量和极速打断（Local Barge-in）。</li>
+</ul>
+</li>
+<li><em>策略</em>：当本地 VAD 判定有人说话时，<strong>立即</strong>通过 WebSocket 发送 <code>input_audio_buffer.append</code>。</li>
+</ul>
+</li>
+<li>
+<p><strong>第三道门：唤醒词 (Wake Word)</strong></p>
+<ul>
+<li><em>隐私屏障</em>：Realtime API 计费昂贵且涉及隐私，不可 24 小时常开。</li>
+<li><em>本地唤醒</em>：车端运行轻量级唤醒引擎（如 "Hi, ChatGPT"）。</li>
+<li><em>One-Shot (一句连说)</em>：支持用户说“Hi ChatGPT 把空调开到26度”，不需要等唤醒词回应。这需要车端缓存唤醒词后的音频流，并在连接建立后迅速 <code>commit</code> 给 Realtime API。</li>
+</ul>
+</li>
+</ol>
+<h3 id="32-smart-barge-in">3.2 智能打断 (Smart Barge-in)</h3>
+<p>Realtime API 的核心优势是可打断，但“怎么打断”有讲究。</p>
+<ul>
+<li><strong>物理打断 (Hard Cut)</strong>：<ul>
+<li>检测到用户说话 -&gt; 立即停止 TTS -&gt; 清空 buffer。</li>
+<li><em>适用</em>：用户说“停！”、“不对！”、“换一首”。</li>
+</ul>
+</li>
+<li><strong>语义打断 (Semantic Barge-in / Backchanneling)</strong>：<ul>
+<li>用户发出“嗯”、“对”、“然后呢”等附和词（Backchannel）。</li>
+<li><em>设计</em>：此时<strong>不应</strong>打断 AI 的陈述。这需要模型具备极快的情感/意图判断能力。</li>
+<li><em>实现难点</em>：目前的 Realtime API 默认 VAD 可能会把“嗯”视为打断。</li>
+<li><em>Workaround</em>：可以通过 Prompt 告知模型：“If the user makes brief agreement sounds like 'hmm' or 'yes', ignore the interruption and continue speaking.”（但这也依赖模型对 <code>input_audio_buffer.commit</code> 后推理的反应速度，通常很难完美，目前工程上多采用<strong>物理打断</strong>作为基准，因为它更可控）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="33-latency-budget">3.3 延迟预算 (Latency Budget)</h3>
+<p>为了达到“实时”感，端到端延迟（Ear-to-Ear）应控制在 <strong>700ms - 1000ms</strong> 以内。</p>
+<p>| 环节 | 预算 (ms) | 优化策略 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">环节</th>
+<th style="text-align: left;">预算 (ms)</th>
+<th style="text-align: left;">优化策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>车端采集+VAD+编码</strong></td>
+<td style="text-align: left;">50-100</td>
+<td style="text-align: left;">使用 Opus 编码，20ms 帧长</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>网络传输 (上行)</strong></td>
+<td style="text-align: left;">50-200</td>
+<td style="text-align: left;">5G/LTE 优先，QoS 保障</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>OpenAI 推理 (TTFT)</strong></td>
+<td style="text-align: left;">300-600</td>
+<td style="text-align: left;">Time To First Token，模型性能关键</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>网络传输 (下行)</strong></td>
+<td style="text-align: left;">50-200</td>
+<td style="text-align: left;">流式接收，首包即播</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>车端解码+JitterBuf</strong></td>
+<td style="text-align: left;">50-100</td>
+<td style="text-align: left;">动态抖动缓冲，避免卡顿</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Rule-of-Thumb</strong>: 如果预测延迟 &gt; 1.5秒（如弱网），立即播放本地的“思考音效”（Filler Sound），如“Hmm... Let me check...”，掩盖静默期。</p>
+</blockquote>
+<hr />
+<h2 id="4">4. 多模态对话策略：视觉的语义化</h2>
+<p>车舱对话的一大痛点是“指代不明”。多模态输入（Video/Images）能解决此问题，但带宽和 Token 消耗巨大，不能无脑传视频流。</p>
+<h3 id="41-triggered-vision-injection">4.1 触发式视觉注入 (Triggered Vision Injection)</h3>
+<p>不要一直上传视频帧。只在以下时刻截取关键帧（Keyframe）并上传：</p>
+<ol>
+<li><strong>显式视觉询问</strong>：用户说“看这里”“这是什么”、“前面的车”。</li>
+<li><strong>DMS 视线触发</strong>：用户长时间（&gt;1s）注视某处并开口说话。</li>
+<li><strong>主动关怀触发</strong>：DMS 检测到打哈欠/闭眼 -&gt; 截帧 -&gt; 上传 -&gt; AI 说“你看起来很累”。</li>
+</ol>
+<h3 id="42-screen-context">4.2 屏幕上下文 (Screen Context)</h3>
+<p>当用户说“点这个”时，Realtime API 需要知道屏幕上有什么。</p>
+<ul>
+<li><strong>方案 A：截图 (Screenshot)</strong><ul>
+<li><em>优点</em>：通用，不论什么 App 都能看。</li>
+<li><em>缺点</em>：Token 消耗大，OCR 精度受光照/分辨率影响，无法获取控件 ID。</li>
+</ul>
+</li>
+<li><strong>方案 B：UI 树 (Accessibility Tree/DOM)</strong><ul>
+<li><em>优点</em>：Token 少，精准获取控件文本、ID、可点击状态。</li>
+<li><em>缺点</em>：需要 App 适配（类似 Android Accessibility 服务）。</li>
+</ul>
+</li>
+<li><strong>混合策略</strong>：<ul>
+<li>优先上传精简后的 UI 树（JSON 格式）。</li>
+<li>如果 JSON 描述不清（如图片按钮），再辅以局部截图（Crop）。</li>
+</ul>
+</li>
+</ul>
+<p><strong>Prompt 示例</strong>：</p>
+<blockquote>
+<p>"User is looking at the center screen. Context: The screen shows a list of 3 restaurants. Item 1: KFC (Coordinates: 100, 200). Item 2: McDonald's. User says: 'Go to the first one'. Your Action: Call tool <code>navigate_to(target='KFC')</code>."</p>
+</blockquote>
+<hr />
+<h2 id="5-action-policy">5. 安全确认与行动策略 (Action Policy)</h2>
+<p>车控涉及物理实体，必须防范 LLM 的“幻觉操作”。</p>
+<h3 id="51-intent-slots">5.1 意图与参数槽位 (Intent &amp; Slots)</h3>
+<p>使用 Agents SDK 将自然语言转化为确定性调用。</p>
+<ul>
+<li><strong>Case</strong>: "我觉得有点冷"</li>
+<li><strong>Reasoning</strong>: 用户没说具体动作，但意图是提高温度。</li>
+<li><strong>Tool Call</strong>: <code>climate_control(action="increase_temp", value=2, unit="celsius")</code> (默认步进值需在 Prompt 中设定)。</li>
+</ul>
+<h3 id="52-the-two-key-turn">5.2 风险确认流程 (The "Two-Key" Turn)</h3>
+<p>对于高风险操作（Level 2/3），采用<strong>“两步确认法”</strong>。</p>
+<ol>
+<li><strong>Step 1: 意图冻结 (Freeze Intent)</strong><ul>
+<li>AI 解析出意图，但不执行。</li>
+<li>AI 生成确认话术：“您是想打开天窗吗？这会产生风噪。”</li>
+</ul>
+</li>
+<li><strong>Step 2: 显式授权 (Explicit Grant)</strong><ul>
+<li>户回答：“是的”、“打开吧”。</li>
+<li><strong>关键点</strong>：这必须是一个新的 Turn。Agents SDK 在收到确认前，其状态机应停留在 <code>WAITING_CONFIRMATION</code> 状态。</li>
+</ul>
+</li>
+</ol>
+<h3 id="53-shadow-mode">5.3 影子模式 (Shadow Mode)</h3>
+<p>对于极其危险的操作（如“关闭大灯”在夜间），系统可以进入影子模式：</p>
+<ul>
+<li><strong>AI</strong>：“正在为您关闭大灯...”</li>
+<li><strong>底层网关</strong>：拦截指令，<strong>不执行</strong>，但检查车辆光感传感器。</li>
+<li><strong>反馈</strong>：如果环境光极暗，网关拒绝执行并返回 Error。</li>
+<li><strong>AI (修正)</strong>：“检测到环境光过暗，为了安全，大灯无法关闭。”</li>
+</ul>
+<hr />
+<h2 id="6">6. 多轮任务流设计模板</h2>
+<h3 id="61-progressive-disclosure">6.1 渐进式任务流 (Progressive Disclosure)</h3>
+<p>不要一次性问完所有问题。</p>
+<ul>
+<li><strong>错误</strong>：“请问您要去哪里？要走高速吗？避开拥堵吗？还需要顺路加油吗？”</li>
+<li><strong>正确</strong>：<ol>
+<li><strong>AI</strong>: “去哪里？”</li>
+<li><strong>User</strong>: “上海中心。”</li>
+<li><strong>AI</strong>: “好的，找到两个路线。第一个走高速快10分钟，第二个不收费。选哪个？”</li>
+<li><strong>User</strong>: “快的那个。”</li>
+</ol>
+</li>
+</ul>
+<h3 id="62-correction">6.2 纠错与修改 (Correction)</h3>
+<p>支持在任务流中随时修改之前的参数。</p>
+<ul>
+<li><strong>User</strong>: “帮我订个明天晚上6点的闹钟。”</li>
+<li><strong>AI</strong>: “好的，明晚6点。”</li>
+<li><strong>User</strong>: “改为后天早上8点。”</li>
+<li><strong>Logic</strong>: Agent 必须能识别“改为”这个关键词，并更新 Context 中的 <code>time</code> 变量，而不是创建一个新闹钟。</li>
+</ul>
+<hr />
+<h2 id="7-tone-voice">7. 语气与人格 (Tone &amp; Voice)</h2>
+<p>车载 AI 的人格设定应为：<strong>靠谱的副驾 (Reliable Co-pilot)</strong>。</p>
+<h3 id="71">7.1 语言风格规范</h3>
+<ul>
+<li><strong>杜绝废话</strong>：不要说“作为一个人工智能模型...”、“好的，我明白了，正在为您处理...”。</li>
+<li><strong>积极响应</strong>：使用“好的”、“收到”、“没问题”作为简短的确认（Acknowledge）。</li>
+<li><strong>不确定性表达</strong>：当置信度低时，不要猜。<ul>
+<li><em>Bad</em>: “前面的车是宝马。” (其实看不太清)</li>
+<li><em>Good</em>: “看起来像是一辆深色轿车，具体型号我看不清。”</li>
+</ul>
+</li>
+</ul>
+<h3 id="72-tts">7.2 声音合成 (TTS)</h3>
+<p>利用 Realtime API 的情感化 TTS：</p>
+<ul>
+<li><strong>紧急情况</strong>：语速加快，音调提高，去除多余停顿。“注意！前方急刹车！”</li>
+<li><strong>舒缓模式</strong>：夜间或播放音乐时，语速放缓，音量适度降低（Whisper mode 概念）。</li>
+</ul>
+<hr />
+<h2 id="8">8. 本章小结</h2>
+<p>本章构建了车载语音机器人的交互框架。</p>
+<ol>
+<li><strong>原则</strong>：安全第一，所见即所得，动态适应驾驶员负荷。</li>
+<li><strong>听</strong>：硬件 AEC + 混合 VAD + 智能打断 = 流畅对话。</li>
+<li><strong>看</strong>：视觉作为对话的“锚点”，解决指代不清，但不滥用带宽。</li>
+<li><strong>做</strong>：风险分级，高危动作必须显式确认，利用 Agents SDK 管理状态。</li>
+</ol>
+<hr />
+<h2 id="9-exercises">9. 练习题 (Exercises)</h2>
+<details>
+<summary><strong>Q1 (基础): 在 Realtime API 的连接中，如果车子进入隧道网络断开，并在 5 秒后重连。此时会话状态（Context）会发生什么？应该如何设计重连机制？</strong></summary>
+<ul>
+<li><strong>提示</strong>：Realtime API 是基于 WebSocket 的长连接，也是有状态的。</li>
+<li><strong>参考答案</strong>：<ul>
+<li><strong>现象</strong>：WebSocket 断开，OpenAI 端的 Session 会在短暂超时后销毁（或保持极短时间，视 API 具体配置而定，通常认为是易失的）。之前的 <code>session.update</code> 设置的 instructions 和 context 可能会丢失。</li>
+<li><strong>设计策略</strong>：<ol>
+<li><strong>客户端缓存</strong>：车端 Client 必须在本地维护一份“当前会话状态镜像”（Conversation History, System Instructions, Current Tool Context）。</li>
+<li><strong>重连恢复</strong>：网络恢复后，重新建立 WebSocket 连接。</li>
+<li><strong>状态注入</strong>：在发送第一帧音频前，先发送 <code>session.update</code> 事件，将缓存的 Prompt、Context 和最近几轮对话历史（作为 user/assistant messages）重新灌入，恢复“记忆”。</li>
+</ol>
+</li>
+</ul>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q2 (进阶): 设计一个“处理后排儿童吵闹”的 Agent 交互流程。结合 OMS（摄像头）和声源定位。</strong></summary>
+<ul>
+<li><strong>提示</strong>：主动关怀 vs 打扰驾驶。区分是谁在说话。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>感知</strong>：麦克风阵列检测到后排高分贝非语言音频（哭闹）。OMS 识别出后排有儿童。</li>
+<li><strong>决策</strong>：判断持续时间 &gt; 10秒（避免偶发尖叫触发）。</li>
+<li><strong>交互（驾驶员侧）</strong>：<ul>
+<li>AI（温和语气）：“检测到宝宝好像有点不舒服，需要我播放一些儿歌或者开启‘儿童安抚模式’吗？”</li>
+</ul>
+</li>
+<li><strong>执行</strong>：<ul>
+<li>用户：“好的。”</li>
+<li>Action：后排音区播放儿歌，前排音区保持导航/静音（音区分离），同时调柔后排氛围灯。</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q3 (挑战): 用户说“这首歌太难听了，切歌”。此时如果是（1）蓝牙音乐（2）车机自带音乐 App（3）FM 收音机。Agent 应如何处理工具调用的差异？</strong></summary>
+<ul>
+<li><strong>提示</strong>：不同媒体源的控制协议不同。</li>
+<li><strong>参考答案</strong>：<ul>
+<li><strong>意图识别</strong>：统一识别为 <code>media_control(action="next")</code>。</li>
+<li><strong>网关适配 (Vehicle Control Gateway)</strong>：<ul>
+<li><strong>Case 1 (车机 App)</strong>：调用 App 提供的 API <code>app.music.next()</code>。</li>
+<li><strong>Case 2 (蓝牙)</strong>：通过 AVRCP 协议向手机发送 <code>Next</code> 指令。</li>
+<li><strong>Case 3 (FM)</strong>：FM 没有“下一首”的概念，映射为“搜下一个电台”或 <code>tune.scan_up()</code>。</li>
+</ul>
+</li>
+<li><strong>交互反馈</strong>：<ul>
+<li>如果 FM 搜索到了噪音，AI 需能解释：“已为您切换到下一个频率 101.7。”</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q4 (场景设计): 设计“GUI Agent 辅助停车缴费”的异常流程。假设二维码加载不出来。</strong></summary>
+<ul>
+<li><strong>提示</strong>：不要让用户在这个时候手动输入复杂的车牌号。</li>
+<li><strong>参考答案</strong>：<ol>
+<li><strong>User</strong>: “付一下停车费。”</li>
+<li><strong>Agent</strong>: 打开缴费 App。</li>
+<li><strong>Error</strong>: 屏幕读检测到页面显示“网络错误”或二维码区域为空白。</li>
+<li><strong>Fallback</strong>:<ul>
+<li>AI：“缴费页面加载失败了。建议您直接驶离，使用出口的人工通道或 ETC。”</li>
+<li><strong>或者</strong>（如果有能力）：AI 尝试点击页面上的“刷新”按钮（Retry）。</li>
+</ul>
+</li>
+<li><strong>禁止行为</strong>：不要让用户语音报信用卡号，也不要让用户盯着屏幕手动输。</li>
+</ol>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q5 (思考): 为什么说车载语音交互中，“沉默”也是一种有效的回答？请举例。</strong></summary>
+<ul>
+<li><strong>提示</strong>：Backchanneling 和隐式确认。</li>
+<li><strong>参考答案</strong>：<ul>
+<li><strong>场景 1：低风险指令的极速反馈</strong>。用户：“打开阅读灯。” 灯亮了。此时 AI 不需要说“好的，阅读灯已打开”。<strong>动作本身的物理反馈（灯亮）已经足够</strong>。AI 保持沉默（或仅播放一个极短的 'Ding' 音效）能极大提升流畅感。</li>
+<li><strong>场景 2：高负荷路况</strong>。用户在处理紧急变道，随口抱怨了一句“这车真多”。AI 保持沉默比搭话“是啊，交通状况确实不好”更安全，不占用驾驶员的听觉通道。</li>
+</ul>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q6 (Prompt Engineering): 写一段 System Instruction，用于指导 Realtime Model 处理“带有方言口音且语速极快”的老年用户。</strong></summary>
+<ul>
+<li><strong>提示</strong>：宽容度、确认策略、语速匹配。</li>
+<li><strong>参考答案</strong>：</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>Role: You are a patient, clear-speaking vehicle assistant.
+User Profile: The user may speak with a strong accent and fast pace.
+Strategy:
+
+<span class="k">1.</span> Listen carefully. If the intent is ambiguous due to accent, ask for clarification politely (&quot;不好意思，我没听清，您是说...吗？&quot;).
+<span class="k">2.</span> Do NOT mimic the user&#39;s fast speed. Speak slightly slower and clearer than usual to establish a calm rhythm.
+<span class="k">3.</span> For critical vehicle controls, paraphrase the request back to the user before executing (e.g., &quot;您是要打开后备，对吗？&quot;).
+</code></pre></div>
+
+</details>
+<hr />
+<h2 id="10-gotchas">10. 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="101-ducking">10.1 陷阱：音量“Ducking”处理不当</h3>
+<ul>
+<li><strong>现象</strong>：AI 说话时，音乐声音没有降低，导致用户听不清 AI 说话；或者 AI 刚说完，音乐突然“炸”回原音量，吓人一跳。</li>
+<li><strong>调试</strong>：<ul>
+<li><strong>Fade-in/Fade-out</strong>：在 Ducking（压低背景音）恢复时，必须有 500ms-1s 的渐变过程。</li>
+<li><strong>优先级抢占</strong>：导航播报 &gt; 电话 &gt; AI 对话 &gt; 媒体音乐。当导航插嘴时，AI 应当暂停（Pause）而不是继续说但被压低声音。</li>
+</ul>
+</li>
+</ul>
+<h3 id="102">10.2 陷阱：过度拟人化的恐怖谷</h3>
+<ul>
+<li><strong>现象</strong>：Prompt 设置为“你是一个调皮的小妹妹”，结果 AI 在用户急刹车时开玩笑说“哎呀好刺激”。</li>
+<li><strong>对策</strong>：<strong>Context-Aware Persona</strong>。当 CAN 总线检测到急刹车（Deceleration &gt; 0.6g）或气囊弹出时，强制切换 System Prompt 为“紧急救援模式”，语气严肃、精准、只确认安全状态。</li>
+</ul>
+<h3 id="103-realtime-api">10.3 陷阱：Realtime API 的“抢话”</h3>
+<ul>
+<li><strong>现象</strong>：用户还在思考“呃...那个...”，AI 以为用户说完了，开始抢答。</li>
+<li><strong>调试</strong>：<ul>
+<li>调整 Realtime API 的 <code>turn_detection</code> 参数。</li>
+<li><code>silence_duration_ms</code>: 默认可能太短。在车内建议设为 <strong>500ms - 800ms</strong>。</li>
+<li>或者实现“动态阈值”：如果用户的前几个词是 Filler words ("呃", "让我想想")，则在客户端逻辑中抑制 <code>commit</code>，给予更多等待时间。</li>
+</ul>
+</li>
+</ul>
+<h3 id="104">10.4 陷阱：忽略了离线能力</h3>
+<ul>
+<li><strong>现象</strong>：车子进地库断网，用户喊“打开车窗”，AI 毫无反应。</li>
+<li><strong>对策</strong>：<strong>Hybrid Intent Matching</strong>。<ol>
+<li>ASR 转录文本同时发给（1）云端 Realtime，（2）本地正则匹配引擎。</li>
+<li>如果云端超时（&gt;1s）或网络不可用，且本地引擎命中了高频车控指令（开窗/关灯），则<strong>立即由本地执行</strong>并反馈。不要死等云端。</li>
+</ol>
+</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter1.html" class="nav-link prev">← Chapter 1｜范围与需求（Scope & Requirements）</a><a href="chapter3.html" class="nav-link next">Chapter 3｜系统总体架构 (System Architecture) →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

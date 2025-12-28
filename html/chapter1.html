@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 1｜范围与需求（Scope & Requirements）</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <ul class="nav-list"><li class=""><a href="index.html">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</a></li><li class="active"><a href="chapter1.html">Chapter 1｜范围与需求（Scope & Requirements）</a></li><li class=""><a href="chapter2.html">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</a></li><li class=""><a href="chapter3.html">Chapter 3｜系统总体架构 (System Architecture)</a></li><li class=""><a href="chapter4.html">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</a></li><li class=""><a href="CLAUDE.html">Untitled</a></li></ul>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-1scope-requirements">Chapter 1｜范围与需求（Scope &amp; Requirements）</h1>
+<h2 id="1">1. 开篇：定义座舱交互的“奇点”</h2>
+<p>欢迎阅读《车舱语音实时对话机器人设计指南》。</p>
+<p>我们正处于车载交互的转折点。过去十年，车载语音助手（Voice Assistant 1.0）主要解决的是“手忙眼乱”时的基础指令执行（如“打开空调”、“导航回家”）。然而，这些系统通常基于刚性的规则引擎和槽位填充（Slot Filling），面临着三大痛点：</p>
+<ol>
+<li><strong>交互僵硬</strong>：必须使用特定唤醒词，无法处理打断（Barge-in），像是在发号施令而非对话。</li>
+<li><strong>感知割裂</strong>：语音助手“看不见”驾驶员指着的屏幕图标，也“不知道”后排乘客正在睡觉。</li>
+<li><strong>生态孤岛</strong>无法操作未开放 API 的第三方安卓应用（如外卖、订票 App）。</li>
+</ol>
+<p>本项目旨在构建 <strong>Voice Agent 2.0</strong>。利用 <strong>OpenAI Realtime API</strong> 的低延迟流式多模态能力，结合 <strong>OpenAI Agents SDK</strong> 的任务编排能力，我们将打造一个<strong>“眼观六路、耳听八方”的拟人化座舱副驾</strong>。它不仅能听懂复杂的自然语言，还能看懂车内外环境，甚至像人一样操作屏幕 App。</p>
+<p><strong>本章学习目标：</strong></p>
+<ol>
+<li><strong>界定边界</strong>：清晰划分“智能座舱 Agent”与“自动驾驶系统”的红线。</li>
+<li><strong>场景拆解</strong>：深入理解车控、RAG 问答、GUI 自动化、多模态感知的具体业务流。</li>
+<li><strong>约束识别</strong>：掌握车规级环境下的特殊限制（弱网、算力、隐私、噪音）。</li>
+<li><strong>指标定义</strong>：确立衡量系统成功的北极星指标（Latency, Completion Rate）。</li>
+</ol>
+<hr />
+<h2 id="2">2. 详细论述</h2>
+<h3 id="21">2.1 价值主张与系统定位</h3>
+<p>本系统在整车电子电气架构（E/E 架构）中位于 <strong>智能座舱域（Smart Cockpit Domain）</strong> 的应用层与服务层之间。它是一个超级中介，向下调动车辆硬件，向上连接云端大模型与互联网生态。</p>
+<h4 id="211">2.1.1 核心价值矩阵</h4>
+<ul>
+<li><strong>安全（Safety）</strong>：通过语音和眼动交互减少驾驶员手离开方向盘（Hands-off）的时间。通过 DMS（驾驶员监控）主动干预疲劳驾驶。</li>
+<li><strong>效率（Efficiency）</strong>：一句话解决复杂任务（例如：“把座椅调舒服点，放首周杰伦的歌，顺便帮我查查胎压正不正常”）。</li>
+<li><strong>情感（Empathy）</strong>：利用 Realtime API 的语音到语音（S2S）能力，提供具备情绪感知和表达的陪伴体验，而非机械的 TTS 播报。</li>
+</ul>
+<h4 id="212-system-context">2.1.2 系统上下文图 (System Context)</h4>
+<div class="codehilite"><pre><span></span><code>      [驾驶员/乘客] (User)
+            | ^
+(语音/手势/视线) | | (语音/屏幕反馈/车辆动作)
+            v |
++---------------------------------------------------------------+
+|                **Intelligent Cockpit Voice Agent**            |
++---------------------------------------------------------------+
+    |            |            |             |            |
+    v            v            v             v            v
+[感知输入]    [车控网关]    [GUI 运行时]    [知识库]    [云端大脑]
+(Perception) (Control GW)  (GUI Runtime)  (RAG DB)   (OpenAI API)
+    |            |            |             |            |
+ DMS/OMS/7V   CAN/LIN总线   Android App   用户手册    Realtime Model
+ 麦克风阵列    空调/座椅     美团/大众     维修数据    Agents SDK
+</code></pre></div>
+
+<h3 id="22-goals-non-goals">2.2 目标与非目标（Goals &amp; Non-goals）</h3>
+<p>明确“不做”什么比“做”什么更重要，这能防止项目范围蔓延（Scope Creep）。</p>
+<h4 id="221-must-haves">2.2.1 核心目标 (Must-Haves)</h4>
+<ol>
+<li><strong>端到端低延迟</strong>：用户停止说话到听到声音（Voice-to-Audio Latency）在 <strong>1秒以内</strong>（理想目标 &lt; 800ms）。</li>
+<li><strong>多模态融合</strong>：支持“指代消解”（Deictic Resolution），即理解“<strong>这个</strong>是什么”、“<strong>那里</strong>么走”。</li>
+<li><strong>闭环服务</strong>：对于不支持 API 的 App，能够通过 GUI Agent 完成从搜索到下单（支付前）的全流程。</li>
+<li><strong>合规与隐私</strong>：所有敏感数据（人脸、车内影像）必须遵循“端侧脱敏”或“用户主动触发”原则。</li>
+</ol>
+<h4 id="222-out-of-scope">2.2.2 严格非目标 (Out of Scope)</h4>
+<ol>
+<li><strong>自动驾驶决策</strong>：Agent <strong>绝不</strong>直接控制油门、刹车、转向系统。即使能看懂红绿灯，也仅作提示，不作控车依据。</li>
+<li><strong>离线大模型推理</strong>：虽然车机芯片算力在提升，但本项目假设核心推理依赖 <strong>OpenAI Realtime API</strong>（云端），端侧仅做轻量级唤醒、VAD 和降级处理。</li>
+<li><strong>全量视频监控</strong>：系统不是行车记录仪，不进行 24 小时不间断的视频录制和云端存储。</li>
+</ol>
+<h3 id="23">2.3 关键业务场景深度拆解</h3>
+<h4 id="231-deep-vehicle-control">2.3.1 深度车控（Deep Vehicle Control）</h4>
+<ul>
+<li><strong>挑战</strong>：传统的车控是 1:1 的指令映射。Agentic 车控需要处理<strong>模糊意图</strong>和<strong>组合指令</strong>。</li>
+<li><strong>景示例</strong>：<ul>
+<li><em>输入</em>：“我有点冷，而且后排那个窗户好像没关严。”</li>
+<li><em>推理</em>：<ol>
+<li>Intent 1: 调高空调温度 OR 打开座椅加热（需结合当前温度决策）。</li>
+<li>Intent 2: 检查后排车窗状态，若未全关则关闭。</li>
+</ol>
+</li>
+<li><em>执行</em>：调用 <code>get_window_status()</code> -&gt; <code>close_window(id=rear_right)</code> -&gt; <code>set_hvac(temp=26)</code>.</li>
+<li><em>ToolCall 设计</em>：必须具备<strong>参数自动补全</strong>和<strong>安全范围校验</strong>能力。</li>
+</ul>
+</li>
+</ul>
+<h4 id="232-ragvisual-rag">2.3.2 视觉增强 RAG（Visual-RAG）</h4>
+<ul>
+<li><strong>挑战</strong>：用户不仅问静态知识，还结合动态视觉。</li>
+<li><strong>场景示例</strong>：<ul>
+<li><em>输入</em>：用户看到仪表盘亮起一个红色图标，问：“这亮的是什么灯？我该怎么办？”</li>
+<li><em>流程</em>：<ol>
+<li><strong>Capture</strong>: 获取仪表盘区域截图。</li>
+<li><strong>Analyze</strong>: 视觉模型识别图标为“发动机机油压力过低”。</li>
+<li><strong>Retrieve</strong>: RAG 检索《车主手册》中关于该故障码的章节。</li>
+<li><strong>Reason</strong>: 结合手册，生成建议（“请立即安全停车，不要继续行驶...”）。</li>
+<li><strong>Respond</strong>: 严肃、紧迫的语气播报。</li>
+</ol>
+</li>
+</ul>
+</li>
+</ul>
+<h4 id="233-gui-agent-app">2.3.3 GUI Agent（车载 App 自动化）</h4>
+<ul>
+<li><strong>挑战</strong>：App 界面多变，且没有标准 API。</li>
+<li><strong>场景示例</strong>：<ul>
+<li><em>输入</em>：“帮我在附近找一家评分 4.5 以上的日料店，要好停车的。”</li>
+<li><em>流程</em>：<ol>
+<li>Agent 唤起“大众点评” App。</li>
+<li><strong>Screen Reading</strong>: 获取 UI 树或截图，识别“搜索框”、“筛选按钮”。</li>
+<li><strong>Action</strong>: 模拟输入“日料”，点击筛选“评分优先”、“有停车场”。</li>
+<li><strong>Summary</strong>: 滚动浏览列表，读取前三家信息，语音汇总给用户。</li>
+</ol>
+</li>
+<li><em>边界</em>：涉及支付密码输入时，Agent 必须暂停，提示用户“请手动完成支付”。</li>
+</ul>
+</li>
+</ul>
+<h4 id="234-proactive-dms">2.3.4 驾驶员监控与主动关怀（Proactive DMS）</h4>
+<ul>
+<li><strong>挑战</strong>：如何平衡“打扰”与“安全”。</li>
+<li><strong>场景示例</strong>：<ul>
+<li><em>触发</em>：DMS 检测到驾驶员 <code>distraction_level &gt; 0.8</code> (视线离开路面) 持续 3秒。</li>
+<li><em>流程</em>：<ol>
+<li>系统静音当前的娱乐音频。</li>
+<li>Realtime API 接收 <code>event: distraction_alert</code>。</li>
+<li>Agent 以<strong>高优先级</strong>插入对话：“前方路况复杂，请集中注意力。”</li>
+<li>若未缓解，自动调低车内温度或收紧安全带（触觉反馈）。</li>
+</ol>
+</li>
+</ul>
+</li>
+</ul>
+<h4 id="235-7v-oms">2.3.5 多模态感知输入（7V + OMS）</h4>
+<ul>
+<li><strong>场景示例</strong>：<ul>
+<li><em>OMS (后排)</em>：检测到婴儿在哭。Agent 主动建议：“宝宝好像不舒服，需要我播放白噪音或调暗后排灯光吗？”</li>
+<li><em>7V (车外)</em>：用户问“右边那个红色的店是干嘛的？”。系统调用右侧摄像头，结合 GPS 和 OCR 识别店招，回答用户。</li>
+</ul>
+</li>
+</ul>
+<h3 id="24-constraints">2.4 外部约束与假设（Constraints）</h3>
+<h4 id="241-the-tunnel-problem">2.4.1 网络环境 (The "Tunnel" Problem)</h4>
+<ul>
+<li><strong>约束</strong>：车辆是移动的，网络连接（4G/5G）不稳定。</li>
+<li><strong>假设</strong>：Realtime API 需要稳定的 WebSocket 连接。</li>
+<li><strong>对策</strong>：<ul>
+<li><strong>心跳机制</strong>：毫秒级监测连接质量。</li>
+<li><strong>混合架构</strong>：具备本地兜底（Fallback）指令集。当断网时，切换到本地轻量级 ASR+NLU，仅支持基础车控（如“打开空调”），并语音告知“当前网络不佳，仅支持基础指令”。</li>
+</ul>
+</li>
+</ul>
+<h4 id="242-the-cocktail-party">2.4.2 声学环境 (The "Cocktail Party")</h4>
+<ul>
+<li><strong>约束</strong>：车内有胎噪、风噪、音乐声、多人说话。</li>
+<li><strong>要求</strong>：必须前置 <strong>AEC（回声消除）</strong>、<strong>NS（噪声抑制）</strong> 和 <strong>BSS（盲源分离）</strong>。</li>
+<li><strong>Realtime 适配</strong>：必须向 Realtime API 发送经过降噪处理的纯净人声，否则模型会把路噪当成语音尝试去理解。</li>
+</ul>
+<h4 id="243">2.4.3 硬件算力</h4>
+<ul>
+<li><strong>约束</strong>：虽然 8295 芯片算力强大，但要分给 3D 渲染、游戏等。留给 Voice Agent 的 NPU/CPU 资源有限。</li>
+<li><strong>Rule of Thumb</strong>：图像上传前必须在端侧压缩。例如，将 4K 摄像头画面 Downsample 到 512x512 或 1024x1024，并为 JPEG，以减少带宽和 Token 消耗。</li>
+</ul>
+<h4 id="244">2.4.4 合规与法律</h4>
+<ul>
+<li><strong>中国市场</strong>：根据《汽车数据安全管理若干规定》，车内视频数据原则上不默认出车。</li>
+<li><strong>对策</strong>：默认只在本地做推理（如 DMS 事件），只有在用户明确触发问答（User Initiated）时，才针对该次请求上传瞬间截图，且需并在屏幕上有明显提示（如录音/录像指示灯）。</li>
+</ul>
+<h3 id="25-requirements-traceability">2.5 需求列表 (Requirements Traceability)</h3>
+<p>| ID | 类别 | 需求名称 | 详细描述 | 优先级 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">ID</th>
+<th style="text-align: left;">类别</th>
+<th style="text-align: left;">需求名称</th>
+<th style="text-align: left;">详细描述</th>
+<th style="text-align: left;">优先级</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>FR-01</strong></td>
+<td style="text-align: left;"><strong>交互</strong></td>
+<td style="text-align: left;"><strong>全双工流式对话</strong></td>
+<td style="text-align: left;">支持随时打断（Barge-in），支持语气克隆或情感化 TTS。</td>
+<td style="text-align: left;">P0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FR-02</strong></td>
+<td style="text-align: left;"><strong>车控</strong></td>
+<td style="text-align: left;"><strong>原子化工具链</strong></td>
+<td style="text-align: left;">封装 50+ 个原子车控接口（Set/Get），支持 ToolCall 调用。</td>
+<td style="text-align: left;">P0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FR-03</strong></td>
+<td style="text-align: left;"><strong>感知</strong></td>
+<td style="text-align: left;"><strong>视觉上下文注入</strong></td>
+<td style="text-align: left;">支持将 DMS/OMS/7V/屏幕截图作为对话上下文（Context）输入。</td>
+<td style="text-align: left;">P1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FR-04</strong></td>
+<td style="text-align: left;"><strong>RAG</strong></td>
+<td style="text-align: left;"><strong>可信手册问答</strong></td>
+<td style="text-align: left;">基于向量数据库检索车主手册，回答必须附带页码或引用链接。</td>
+<td style="text-align: left;">P1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FR-05</strong></td>
+<td style="text-align: left;"><strong>GUI</strong></td>
+<td style="text-align: left;"><strong>泛化 App 控制</strong></td>
+<td style="text-align: left;">基于 Accessibility 或 Vision 的 App 操控，支持至少 5 个主流 App。</td>
+<td style="text-align: left;">P2</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FR-06</strong></td>
+<td style="text-align: left;"><strong>安全</strong></td>
+<td style="text-align: left;"><strong>驾驶模式门禁</strong></td>
+<td style="text-align: left;">当车速 &gt; X km/h 时，自动禁用视频播放、复杂 GUI 操作等高风险功能。</td>
+<td style="text-align: left;">P0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>NFR-01</strong></td>
+<td style="text-align: left;"><strong>性能</strong></td>
+<td style="text-align: left;"><strong>首字延迟</strong></td>
+<td style="text-align: left;">VAD 结束到 TTS 首个音频包播放 &lt; 1000ms (P90)。</td>
+<td style="text-align: left;">P0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>NFR-02</strong></td>
+<td style="text-align: left;"><strong>隐私</strong></td>
+<td style="text-align: left;"><strong>数据最小化</strong></td>
+<td style="text-align: left;">图像数据非必要不上云，上云必脱敏。</td>
+<td style="text-align: left;">P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="26">2.6 风险清单</h3>
+<ol>
+<li><strong>幻觉风险 (Hallucination)</strong>：模型可能会自信地编造一个不存在的车辆功能（例如“已启动飞行模式”）。<ul>
+<li><em>缓解</em>：严格的 System Prompt 约束 + RAG 检索校验 + 车控指令的有效性校验（Validator）。</li>
+</ul>
+</li>
+<li><strong>误触发风险</strong>：乘客聊天提到“我想吃火锅”，系统误以为是指令而打断。<ul>
+<li><em>缓解</em>：更精准的唤醒策略（视线检测 + 关键词），以及 Realtime API 的 VAD 灵敏度动态调整。</li>
+</ul>
+</li>
+<li><strong>GUI 易碎性</strong>：第三方 App 更新导致 UI 结构变化，Agent 无法定位元素。<ul>
+<li><em>缓解</em>：使用基于视觉语义（Vision-based）的定位而非硬编码坐标；建立云端热更新机制。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="3">3. 本章小结</h2>
+<p>本章明确了我们正在构建的是一个<strong>车规级、多模态、实时交互的智能体系统</strong>。</p>
+<ul>
+<li><strong>What</strong>: 一个集成了 OpenAI Realtime API (耳/口) 和 Agents SDK (脑) 的座舱副驾。</li>
+<li><strong>Why</strong>: 解决传统语音助手交互僵硬、感知能力弱、服务生态割裂的问题。</li>
+<li><strong>Constraints</strong>: 必须在弱网、高噪、低算力预算和严格隐私法规的夹缝中求生存。</li>
+</ul>
+<p><strong>Rule of Thumb (经验法则)：</strong></p>
+<blockquote>
+<p>如果一个功能涉及到底盘控制（如加速），<strong>永远不要</strong>让 AI Agent 直接接管；
+如果一个功能涉及到即时反馈（如音量调节），<strong>一定要</strong>提供本地离线路径作为备份。</p>
+</blockquote>
+<hr />
+<h2 id="4">4. 练习题</h2>
+<h3 id="_1">基础题</h3>
+<details>
+<summary><strong>Q1: 为什么车载场景下，GUI Agent 比传统的 API 对接更具扩展性，但稳定性更差？</strong> (Hint: 封闭生态 vs. 视觉识别)</summary>
+<ul>
+<li><strong>答案</strong>：<ul>
+<li><strong>扩展性</strong>：API 对接需要与每个 App 厂商（美团、爱奇艺等）进行商务谈判和定制开发，周期长、成本高。GUI Agent 模拟人类操作，理论上可以操作任何已安装的 App，无需厂商配合。</li>
+<li><strong>稳定性</strong>：API 是契约，通常向后兼容且稳定。GUI Agent 依赖界面元素（UI Tree/截图），一旦 App 版本更新改变了布局、图标或文案，Agent 就可能找不到目标，导致任务失败。</li>
+</ul>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q2: 在“多模态输入”场景中，为什么要区分“事件触发（Event-triggered）”和“持续流式（Continuous Streaming）”上传？</strong> (Hint: 带宽与隐私)</summary>
+<ul>
+<li><strong>答案</strong>：<ul>
+<li><strong>持续流式</strong>：摄像头画面像直播一样不间断传给大模型。这在车端不仅消耗巨大的 4G/5G 流量（成本高），还会迅速耗尽车机与云端的带宽，增加延迟，且存在极大的隐私监控风险。</li>
+<li><strong>事件触发</strong>：仅在 VAD 检测到用户说话、或 DMS 检测到异常时，截取关键帧上传。这符合“数据最小化”原则，降低了成本和隐私风险。本项目采用此方案。</li>
+</ul>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q3: 解释什么是“指代消解（Deictic Resolution）”在车载场景的应用。</strong> (Hint: 这个、那个、这里)</summary>
+<ul>
+<li><strong>答案</strong>：<ul>
+<li>指代消解是指系统理解代词（如“这个”、“那个”、“它”）具体指代对象的能力。</li>
+<li>在车载场景中，多模态输入是关键。例如用户说“<strong>这个</strong>怎么关掉？”，系统必须结合<strong>视线追踪（Gaze Tracking）</strong>（看的是中控屏还是后视镜？）或<strong>手势识别</strong>（指着哪个图标？），才能知道这个”指的是“车道保持辅助开关”。</li>
+</ul>
+</li>
+</ul>
+</details>
+<h3 id="_2">挑战题</h3>
+<details>
+<summary><strong>Q4: 架构设计思考：如果 Realtime API 的平均延迟是 800ms，但在隧道中丢包率达到 30%，你应该如何设计系统架构以保证用户不会觉得系统“死机”了？</strong> (Hint: 状态机、本地反馈、非阻塞)</summary>
+<ul>
+<li><strong>答案</strong>：<ol>
+<li><strong>即时反馈（Acknowledgment）</strong>：在 VAD 检测到用户说完话的瞬间（&lt;100ms），本地立即播放一个“思考音效”或让虚拟形象做出“倾听/思考”的动画。这买到了 1-2 秒的心理等待时间。</li>
+<li><strong>混合路由（Hybrid Routing）</strong>：<ul>
+<li>端侧 NLU 并行分析。如果意图是简单的“打开车窗”，且云端在 500ms 内无响应，直接执行本地指令。</li>
+</ul>
+</li>
+<li><strong>流式重试与平滑</strong>：WebRTC 本身有丢包重传（NACK/FEC），但在应用层，如果 3秒无音频流返回，应触发降级逻辑，TTS 播报“网络信号弱，请稍后再”，而不是无限静默。</li>
+<li><strong>推测执行（Speculative Execution）</strong>：(高级) 对于概率极高的后续动作，可以预加载数据。</li>
+</ol>
+</li>
+</ul>
+</details>
+<details>
+<summary><strong>Q5: 安全与伦理：如果用户在驾驶过程中情绪激动，命令 Agent “把所有车窗打开，我要透透气”，而此时车速为 120km/h，Agent 应该如何处理？</strong> (Hint: 意图识别 vs. 安全规则)</summary>
+<ul>
+<li><strong>答案</strong>：<ol>
+<li><strong>意图识别</strong>：正确识别用户意图是 <code>open_all_windows()</code>。</li>
+<li><strong>安全规则校验（Guardrails）</strong>：Agent 在执行 ToolCall 之前，必须查询 <code>vehicle_speed</code>。</li>
+<li><strong>规则冲突</strong>：发现车速 120km/h，全开车窗会产生极大的风阻、噪音，甚至影响车辆稳定性（安全风险）。</li>
+<li><strong>拒绝与协商</strong>：<ul>
+<li><strong>拒绝</strong>：不执行全开指令。</li>
+<li><strong>解释</strong>：TTS 回复“当前车速过快，全开车窗不安全。”</li>
+<li><strong>替代方案</strong>：提出建议“我可以您把天窗翘起，或者打开内循环通风，可以吗？”</li>
+</ul>
+</li>
+</ol>
+</li>
+</ul>
+</details>
+<hr />
+<h2 id="5-gotchas">5. 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="51-the-god-mode-fallacy">5.1 “全能神”谬误 (The God Mode Fallacy)</h3>
+<ul>
+<li><strong>错误想法</strong>：认为接了大模型，车上所有几百个功能都能控制，无需一一开发工具。</li>
+<li><strong>现实</strong>：大模型只能输出文本意图。要真正控制车，必须由工程师编写对应的 <strong>Function/Tool 定义</strong>，并将意图映射到底层 CAN 信号。如果你没写“控制后雾灯”的 Tool，模型说得再天花乱坠也控制不了。</li>
+<li><strong>调试技巧</strong>：从高频 Top 50 功能开始，逐步扩充 Tool 库，而不是一次性全量接入。</li>
+</ul>
+<h3 id="52-vad">5.2 忽视 VAD 的截断问题</h3>
+<ul>
+<li><strong>错误现象</strong>：用户说“打开空...调，还有...”，因为中间停顿，Realtime API 判定说话结束，立即打断用户并执行了“打开空调”。</li>
+<li><strong>后果</strong>：用户体验极差，感觉被抢话。</li>
+<li><strong>调试技巧</strong>：<ul>
+<li>在云端配置更宽松的 <code>turn_detection</code> 参数（如 <code>silence_duration_ms</code>）。</li>
+<li>在端侧引入<strong>多模态 VAD</strong>：如果摄像头看到用户嘴巴还在动，或者视线还盯着屏幕，即使有静音也不发送“说话结束”信号。</li>
+</ul>
+</li>
+</ul>
+<h3 id="53">5.3 隐私合规的“事后诸葛亮”</h3>
+<ul>
+<li><strong>错误做法</strong>：先做完功能，全量上传图片，上线前才发现违反了欧盟 GDPR 或中国《汽车数据安全管理规定》。</li>
+<li><strong>后果</strong>：重构架构，甚至面临巨额罚款。</li>
+<li><strong>Rule of Thumb</strong>：架构设计第一天就必须设计<strong>“隐私开关”</strong>和<strong>“本地脱敏层”</strong>。任何上传云端的图像链路，中间都必须经过一个负责裁剪、模糊化、去标识的 Filter 模块。</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="index.html" class="nav-link prev">← 车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</a><a href="chapter2.html" class="nav-link next">Chapter 2｜用户体验与对话交互 (UX & Conversation Design) →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

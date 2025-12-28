@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 3｜系统总体架构 (System Architecture)</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <ul class="nav-list"><li class=""><a href="index.html">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</a></li><li class=""><a href="chapter1.html">Chapter 1｜范围与需求（Scope & Requirements）</a></li><li class=""><a href="chapter2.html">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</a></li><li class="active"><a href="chapter3.html">Chapter 3｜系统总体架构 (System Architecture)</a></li><li class=""><a href="chapter4.html">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</a></li><li class=""><a href="CLAUDE.html">Untitled</a></li></ul>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-3-system-architecture">Chapter 3｜系统总体架构 (System Architecture)</h1>
+<h2 id="1">1. 开篇段落</h2>
+<p>本章是整个系统设计的蓝图。与传统的基于 HTTP 请求/响应的语音助手不同，基于 <strong>OpenAI Realtime API</strong> 的座舱系统是一个<strong>全双工（Full-Duplex）、事件驱动（Event-Driven）且端云深度协同</strong>的复杂分布式系统。</p>
+<p>在本章中，我们将系统解构为三个物理与逻辑平面：<strong>车端感知执行平面</strong>（Vehicle Edge）、<strong>实时连接平面</strong>（Connectivity Layer）和<strong>云端认知编排平面</strong>（Cloud Cognitive Layer）。不仅要解决“如何对话”的问题，更要解决在 4G/5G 网络抖动下如何保持连接、如何处理多模态数据的高吞吐量、以及如何确保云端的大模型不会因为“幻觉”而威胁行车安全。</p>
+<p><strong>学习目标</strong>：</p>
+<ol>
+<li><strong>全局观</strong>：掌握从麦克风采集到车轮转动的完整数据链路。</li>
+<li><strong>连接技术</strong>：理解为何以及如何在车端实现 WebRTC/WebSocket 双通道连接。</li>
+<li><strong>编排逻辑</strong>：深入理解 OpenAI Realtime API（负责拟人交互）与 Agents SDK（负责任务执行）的“双脑协作”模式。</li>
+<li><strong>安全架构</strong>：掌握“不可信云端”与“安全车端”之间的隔离网关设计。</li>
+</ol>
+<hr />
+<h2 id="2">2. 文字论述</h2>
+<h3 id="31">3.1 架构设计理念与拓扑</h3>
+<p>我们遵循以下核心设计原则：</p>
+<ul>
+<li><strong>云脑端手 (Cloud Brain, Edge Body)</strong>：复杂的推理、知识检索、多轮对话在云端；信号采集、指令执行、即时反馈在车端。</li>
+<li><strong>悲观安全策略 (Pessimistic Safety)</strong>：假设云端指令可能出错、被劫持或超时，车端网关拥有最终否决权。</li>
+<li><strong>流式优先 (Streaming First)</strong>：所有数据（音频、文本、工具参数）尽可能流式传输，拒绝批处理等待，以压榨每一毫秒的延迟。</li>
+</ul>
+<h4 id="ascii">系统逻辑拓扑图 (ASCII)</h4>
+<div class="codehilite"><pre><span></span><code><span class="k">[</span><span class="c"> User / Cabin Environment </span><span class="k">]</span>
+<span class="c">       ^      |      |</span>
+<span class="c">(Audio)|      |(Img) |(Touch)</span>
+<span class="c">       v      v      v</span>
+<span class="nb">+-----------------------------------------------------------------------------------+</span>
+<span class="c">|  Vehicle Edge (Client Zone) </span><span class="nb">-</span><span class="c"> Trust Level: High (ASIL</span><span class="nb">-</span><span class="c">B/QM)                       |</span>
+<span class="nb">+-----------------------------------------------------------------------------------+</span>
+<span class="c">|  1</span><span class="nt">.</span><span class="c"> Perception Layer (Sensors)                                                    |</span>
+<span class="c">|  </span><span class="nb">+-------------+</span><span class="c">   </span><span class="nb">+------------------+</span><span class="c">   </span><span class="nb">+-------------------+</span><span class="c">                   |</span>
+<span class="c">|  | Mic Array   |   | Cameras (DMS/7V) |   | Screen/IVI System |                   |</span>
+<span class="c">|  </span><span class="nb">+-</span><span class="k">[</span><span class="c">DSP/AEC</span><span class="k">]</span><span class="nb">---+</span><span class="c">   </span><span class="nb">+--</span><span class="k">[</span><span class="c">FrameSampler</span><span class="k">]</span><span class="nb">--+</span><span class="c">   </span><span class="nb">+-</span><span class="k">[</span><span class="c">AccessService</span><span class="k">]</span><span class="nb">---+</span><span class="c">                   |</span>
+
+<span class="c">|  </span><span class="nb">+-</span><span class="k">[</span><span class="c">DSP/AEC</span><span class="k">]</span><span class="nb">---+</span><span class="c">   </span><span class="nb">+--</span><span class="k">[</span><span class="c">FrameSampler</span><span class="k">]</span><span class="nb">--+</span><span class="c">   </span><span class="nb">+-</span><span class="k">[</span><span class="c">AccessService</span><span class="k">]</span><span class="nb">---+</span><span class="c">                   |</span>
+<span class="c">|         |                   |                       |                             |</span>
+<span class="c">|         v                   v                       v                             |</span>
+<span class="c">|  2</span><span class="nt">.</span><span class="c"> Realtime Client Adapter (Mediator)                                            |</span>
+<span class="c">|  </span><span class="nb">+-----------------------------------------------------------------------+</span><span class="c">        |</span>
+<span class="c">|  |  Session Manager (Auth</span><span class="nt">,</span><span class="c"> Reconnect</span><span class="nt">,</span><span class="c"> State Sync)                        |        |</span>
+<span class="c">|  |  </span><span class="nb">+-----------------------+</span><span class="c">   </span><span class="nb">+-------------------------------------+</span><span class="c">  |        |</span>
+<span class="c">|  |  | Audio Stream (WebRTC) |   | Control/Event Channel (WebSocket)   |  |        |</span>
+<span class="c">|  |  </span><span class="nb">+-----------------------+</span><span class="c">   </span><span class="nb">+-------------------------------------+</span><span class="c">  |        |</span>
+<span class="c">|  </span><span class="nb">+-----------------------------------------------------------------------+</span><span class="c">        |</span>
+<span class="c">|                                     ^                                             |</span>
+<span class="c">|                                     | (Local Fallback &amp; Feedback)                 |</span>
+<span class="c">|  3</span><span class="nt">.</span><span class="c"> Execution Layer (Actuators)     v                                             |</span>
+<span class="c">|  </span><span class="nb">+---------------------+</span><span class="c">      </span><span class="nb">+---------------------+</span><span class="c">                             |</span>
+<span class="c">|  | Vehicle Control GW  | </span><span class="nv">&lt;</span><span class="nb">--</span><span class="nv">&gt;</span><span class="c"> | Local TTS/Player    |                             |</span>
+<span class="c">|  | (Safety Check/CAN)  |      | (Buffer Mgmt)       |                             |</span>
+<span class="c">|  </span><span class="nb">+---------------------+</span><span class="c">      </span><span class="nb">+---------------------+</span><span class="c">                             |</span>
+
+<span class="nb">+-------------+-----------------------+---------------------------------------------+</span>
+<span class="c">              | (RTP Media)           | (JSON Events / Tool Calls)</span>
+
+<span class="c">              | (RTP Media)           | (JSON Events / Tool Calls)</span>
+<span class="c">              |                       |</span>
+
+<span class="c">      </span><span class="k">[</span><span class="c"> Secure Network Tunnel (TLS 1</span><span class="nt">.</span><span class="c">3 / mTLS) </span><span class="k">]</span>
+<span class="c">              |                       |</span>
+<span class="nb">+-------------+-----------------------+---------------------------------------------+</span>
+<span class="c">|  Cloud / Edge (Server Zone) </span><span class="nb">-</span><span class="c"> Trust Level: Zero Trust                             |</span>
+<span class="nb">+-----------------------------------------------------------------------------------+</span>
+<span class="c">|  4</span><span class="nt">.</span><span class="c"> Conversation Layer (OpenAI Realtime API)                                      |</span>
+<span class="c">|  </span><span class="nb">+-------------------------------------------------------------+</span><span class="c">                  |</span>
+<span class="c">|  |  Model Inference (GPT</span><span class="nb">-</span><span class="c">4o class)                             |                  |</span>
+<span class="c">|  |  </span><span class="k">[</span><span class="c">VAD</span><span class="k">]</span><span class="c"> </span><span class="nb">-</span><span class="nv">&gt;</span><span class="c"> </span><span class="k">[</span><span class="c">STT</span><span class="k">]</span><span class="c"> </span><span class="nb">-</span><span class="nv">&gt;</span><span class="c"> </span><span class="k">[</span><span class="c">Reasoning</span><span class="k">]</span><span class="c"> </span><span class="nb">-</span><span class="nv">&gt;</span><span class="c"> </span><span class="k">[</span><span class="c">TTS</span><span class="k">]</span><span class="c">                     |                  |</span>
+<span class="c">|  |  ^            | (Function Call Intent)                      |                  |</span>
+<span class="c">|  |  | (Context)  v                                             |                  |</span>
+<span class="c">|  </span><span class="nb">+--+----------------------------------------------------------+</span><span class="c">                  |</span>
+<span class="c">|     | Events                                                                      |</span>
+<span class="c">|     v                                                                             |</span>
+<span class="c">|  5</span><span class="nt">.</span><span class="c"> Orchestration Layer (Agents SDK Runtime)                                      |</span>
+<span class="c">|  </span><span class="nb">+-------------------------------------------------------------+</span><span class="c">                  |</span>
+<span class="c">|  |  Main Orchestrator (Router)                                 |                  |</span>
+<span class="c">|  |  </span><span class="nb">+-------------+</span><span class="c">  </span><span class="nb">+-------------+</span><span class="c">  </span><span class="nb">+-------------+</span><span class="c">          |                  |</span>
+<span class="c">|  |  | CarCtrl Agt |  | KnowledgeAg |  | GUI Auto Agt|          |                  |</span>
+<span class="c">|  |  </span><span class="nb">+-------------+</span><span class="c">  </span><span class="nb">+-------------+</span><span class="c">  </span><span class="nb">+-------------+</span><span class="c">          |                  |</span>
+<span class="c">|  </span><span class="nb">+--------+----------------+-------------------+---------------+</span><span class="c">                  |</span>
+
+<span class="c">|  </span><span class="nb">+--------+----------------+-------------------+---------------+</span><span class="c">                  |</span>
+<span class="c">|           |                |                   |                                  |</span>
+<span class="c">|        </span><span class="k">[</span><span class="c">Vehicle</span><span class="k">]</span><span class="c">         </span><span class="k">[</span><span class="c">Vector DB</span><span class="k">]</span><span class="c">       </span><span class="k">[</span><span class="c">App API/Map</span><span class="k">]</span><span class="c">                          |</span>
+<span class="c">|        </span><span class="k">[</span><span class="c">State DB</span><span class="k">]</span><span class="c">        (RAG)             (Services)                             |</span>
+
+<span class="nb">+-----------------------------------------------------------------------------------+</span>
+</code></pre></div>
+
+<h3 id="32">3.2 详细组件职责分解</h3>
+<h4 id="321-vehicle-client-adapter">3.2.1 车端：感知与连接适配器 (Vehicle Client Adapter)</h4>
+<p>这是驻留在车机（IVI, Android/QNX）上的核心服务。</p>
+<ol>
+<li>
+<p><strong>Audio Engine (音频引擎)</strong></p>
+<ul>
+<li><strong>AEC Loopback</strong>：必须将系统音频输出（TTS + 音乐）作为参考信号送回 AEC 模块，确保模型不会听到“自己的声音”或背景音乐，这是实现“随时打断（Barge-in）”的基础。</li>
+<li><strong>Opus 编码</strong>：将 PCM 音频实时编码为 Opus 格式（通常 24kHz 或 48kHz），通过 WebRTC DataChannel 或 RTP 发送。</li>
+</ul>
+</li>
+<li>
+<p><strong>Multi-modal Sampler (多模态采样器)</strong></p>
+<ul>
+<li><strong>DMS/OMS</strong>：不上传视频流。仅当检测到特定事件（如“注视屏幕、“手势指向”）或 Realtime API 主动请求时，才截取关键帧（Keyframe），压缩为 Base64 发送。</li>
+<li><strong>Screen Reader</strong>：监听 View 树变化。为了节省 Token，通常将 UI 树简化为 JSON 描述（文本、坐标、可点击性）上传，仅在 UI 解析失败时上传截图。</li>
+</ul>
+</li>
+<li>
+<p><strong>Connection Manager (连接管理器)</strong></p>
+<ul>
+<li><strong>Ephemeral Token 换取</strong>：车端不存储 OpenAI API Key。每次启动会话前，通过车厂后端服务（Backend-for-Frontend）用设备证书换取一个有时效性（如 10 分钟）的 Ephemeral Token。</li>
+<li><strong>心跳与重连</strong>：监测网络质量。当 RTT &gt; 500ms 时，自动介入提示用户网络不佳；断网时切换至本地离线指令引擎。</li>
+</ul>
+</li>
+</ol>
+<h4 id="322-realtime-api">3.2.2 云端：Realtime API (会话层)</h4>
+<p>OpenAI Realtime API 是系统的“交互界面”。</p>
+<ul>
+<li><strong>Session Config</strong>：在连接建立初期下发 System Prompt（设定人设：“你是一个专业的车载助手...”）和 Available Tools（工具定义）。</li>
+<li><strong>VAD Settings</strong>：配置服务端 VAD 的灵敏度。在车内嘈杂环境，通常需要调高 <code>threshold</code>，避免风噪误触发打断。</li>
+<li><strong>Function Calling 触发</strong>：模型不执行代码，只生成 JSON 意图。它负责判断“用户想开窗”，并暂停 TTS，输出 <code>tool_calls</code> 事件。</li>
+</ul>
+<h4 id="323-agents-sdk">3.2.3 云端：Agents SDK (编排层)</h4>
+<p>这是业务逻辑的大脑，通常部署在车厂的私有云或 Serverless 环境中。</p>
+<ul>
+<li>
+<p><strong>Agent 拓扑结构</strong>：</p>
+<ul>
+<li><strong>Router/Supervisor</strong>：接收 Realtime API 的所有 <code>tool_calls</code>。根据函数名分发给下游 Agent。</li>
+<li><strong>RAG Agent</strong>：负责查阅手册。包含 Query Rewrite（重写查询）、Embedding、Vector Search、Rerank（重排序）四个步骤。</li>
+<li><strong>Vehicle Control Agent</strong>：负责状态校验。例如用户说“打开雨刮”，Agent 先查询车辆状态数据库（Vehicle Shadow），确认当前不是“洗车模式”，再生成指令。</li>
+<li><strong>GUI Agent</strong>：负责复杂 APP 操作。维护一个有状态机（FSM），处理点击、滚动、输入文本、确认弹窗。</li>
+</ul>
+</li>
+<li>
+<p><strong>Handoff（交接）</strong>：Agents SDK 允许不同 Agent 之间移交控制权。例如，GUI Agent 在订餐时发现用户问“这餐厅有停车位吗？”，可以将上下文暂时移交给 RAG/Map Agent 回答，再切回来。</p>
+</li>
+</ul>
+<h4 id="324-vehicle-safety-gateway">3.2.4 车端：安全网关 (Vehicle Safety Gateway)</h4>
+<p>这是最后一道防线。</p>
+<ul>
+<li><strong>Signal Firewall (信号防火墙)</strong>：<ul>
+<li><strong>黑名单</strong>：行驶中禁止操作引擎盖、后备箱、座椅大幅度调节。</li>
+<li><strong>速率限制</strong>：防止云端 Bug 导致 1 秒内发送 100 次“开关车窗”指令烧毁电机。</li>
+</ul>
+</li>
+<li><strong>User Confirmation (用户确认)</strong>：<ul>
+<li>对于高风险操作（如关闭大灯），网关会拦截指令，强制要求 Realtime API 发起二次语音确认（“检测到正在夜间行驶，确定要关闭大灯吗？”），收到明确肯定后才放行。</li>
+</ul>
+</li>
+</ul>
+<h3 id="33">3.3 数据对象与接口契约</h3>
+<p>清晰的数据定义是解耦的关键。</p>
+<h4 id="331-session-context">3.3.1 会话上下文 (Session Context)</h4>
+<p>除了对话历史，Context 还包含<strong>车辆环境快照</strong>，每次对话轮次更新：</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sess_abc123&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;vehicle_context&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;speed&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">85.0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;gear&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;D&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;passengers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;driver&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;rear_right&quot;</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">&quot;location&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;lat&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">31.2</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;lng&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">121.4</span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;screen_activity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;com.tesla.nav&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><em>Rule of Thumb</em>：不要把所有车辆信号都塞进 Context，只放跟交互决策强相关的（如速度、乘客、当前APP）。</p>
+<h4 id="332-tool-contract">3.3.2 工具调用契约 (Tool Contract)</h4>
+<p>Realtime API 发出的结构 vs. Agents SDK 返回的结构：</p>
+<p><strong>Request (From Realtime API):</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;function&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;adjust_climate&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;arguments&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{ \&quot;temperature\&quot;: 22, \&quot;zone\&quot;: \&quot;driver\&quot; }&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><strong>Response (From Agents SDK):</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;tool_call_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;call_xyz&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;success&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;output&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;驾驶席温度已设定为22度。当前外部温度较低，建议开启座椅加热。&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;visual_feedback&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;widget_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;climate_toast&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;duration&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3000</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p><em>注意</em>：返回不仅包含文本结果，还可能包含 <code>visual_feedback</code> 用于在车机屏幕上弹窗。</p>
+<h3 id="34-sequence-diagrams">3.4 关键链路时序图 (Sequence Diagrams)</h3>
+<h4 id="barge-in-control">场景：打断对话并执行车控 (Barge-in &amp; Control)</h4>
+<div class="codehilite"><pre><span></span><code><span class="n">User</span><span class="w">      </span><span class="n">Mic</span><span class="o">/</span><span class="n">VAD</span><span class="w">    </span><span class="n">RealtimeAPI</span><span class="w">    </span><span class="n">AgentsSDK</span><span class="w">    </span><span class="n">VehicleGW</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="p">(</span><span class="n">TTS</span><span class="w"> </span><span class="n">playing</span><span class="w"> </span><span class="s">&quot;The weather is...&quot;</span><span class="p">)</span><span class="w">     </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+
+<span class="w"> </span><span class="o">|</span><span class="p">(</span><span class="n">TTS</span><span class="w"> </span><span class="n">playing</span><span class="w"> </span><span class="s">&quot;The weather is...&quot;</span><span class="p">)</span><span class="w">     </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="s">&quot;Too loud!&quot;</span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|----------&gt;|</span><span class="w"> </span><span class="p">[</span><span class="n">Detect</span><span class="p">]</span><span class="w">   </span><span class="o">|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|--</span><span class="n">Truncate</span><span class="o">-&gt;|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|--</span><span class="n">AudioOpus</span><span class="o">&gt;|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">CancelTTS</span><span class="p">]</span><span class="w"> </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Infer</span><span class="p">]</span><span class="w">     </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|&lt;</span><span class="n">ToolCall</span><span class="o">&gt;</span><span class="w">   </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|--</span><span class="n">set_vol</span><span class="o">---&gt;|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Check</span><span class="p">]</span><span class="w">    </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|--</span><span class="n">Cmd</span><span class="o">------&gt;|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="p">[</span><span class="n">Set</span><span class="w"> </span><span class="n">Vol</span><span class="p">]</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w">             </span><span class="o">|&lt;--</span><span class="n">Ack</span><span class="o">------|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|&lt;--</span><span class="n">Result</span><span class="o">----|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|</span><span class="w">           </span><span class="o">|</span><span class="w">            </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Gen</span><span class="w"> </span><span class="n">Resp</span><span class="p">]</span><span class="w">  </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+<span class="w"> </span><span class="o">|&lt;--</span><span class="n">Audio</span><span class="w"> </span><span class="p">(</span><span class="s">&quot;OK&quot;</span><span class="p">)</span><span class="o">---------|</span><span class="w">             </span><span class="o">|</span><span class="w">            </span><span class="o">|</span>
+</code></pre></div>
+
+<h3 id="35-deployment-view">3.5 部署架构 (Deployment View)</h3>
+<p>为了满足高可用性：</p>
+<ol>
+<li><strong>车端 (Edge)</strong>：<ul>
+<li>Android Service / Linux Daemon。</li>
+<li>通过 mTLS (双向认证) 连接接入层。</li>
+</ul>
+</li>
+<li><strong>接入层 (Gateway Cluster)</strong>：<ul>
+<li>负责 SSL 卸载、负载均衡。</li>
+<li>部署在离用户最近的 POP 点（边缘节点），通过专线回源到 OpenAI 和 Agents 服务。</li>
+</ul>
+</li>
+<li><strong>计算层 (Compute)</strong>：<ul>
+<li><strong>Agents Runtime</strong>：无状态容器（K8s），可水平扩展。</li>
+<li><strong>Redis</strong>：存储会话的中间状态（State Store）。</li>
+<li><strong>Vector DB</strong>：存储 RAG 知识库。</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="3">3. 本章小结</h2>
+<p>本章构建了一个深度融合的<strong>端云混合架构</strong>。</p>
+<ul>
+<li><strong>Realtime API</strong> 被定位为“感知与交互中枢”，负责让交互变得自然、实时、多模态。</li>
+<li><strong>Agents SDK</strong> 被定位为“逻辑与执行中枢”，负责处理复杂的业务规则、工具调用和状态管理。</li>
+<li><strong>车端网关</strong> 是不可逾越的“安全底线”，确保任何来自 AI 的指令都在物理安全范围内。</li>
+</ul>
+<p>这种架构将不确定的 AI 生成能力（Probabilistic）与确定的车辆控制要求（Deterministic）通过明确的接口契约结合在了一起。</p>
+<hr />
+<h2 id="4">4. 练习题</h2>
+<h3 id="_1">基础题</h3>
+<details>
+<summary>1. 为什么在 Realtime API 架构中，推荐使用 WebRTC 而不是纯 WebSocket 传输音频？(点击展开)</summary>
+<p><strong>Hint</strong>: 考虑协议底层基于 UDP 还是 TCP，以及对丢包的敏感度。</p>
+<p><strong>参考答案</strong>：</p>
+<ul>
+<li><strong>延迟与抗抖动</strong>：WebRTC 基于 UDP（RTP），在网络发生丢包时，它倾向于丢弃旧帧以保持实时性（低延迟），而不是像 WebSocket (TCP) 那样进行重传导致队头阻塞（Head-of-Line Blocking），这对于实时语音对话至关重要。</li>
+<li><strong>回声消除与流控</strong>：WebRTC 协议栈内置了成熟的拥塞控制、抖动缓冲（Jitter Buffer）和回声消除协商机制，适合双向流媒体传输。</li>
+</ul>
+</details>
+<details>
+<summary>2. 什么是“Ephemeral Token”（临时凭证），为什么车端不能直接硬编码 OpenAI API Key？(点击展开)</summary>
+<p><strong>Hint</strong>: 车辆可能会被破解、拆解，Key 泄露的后果。</p>
+<p><strong>参考答案</strong>：</p>
+<ul>
+<li><strong>安全性</strong>：如果车端硬编码主 Key，一旦车辆被拆解或系统被 Root，Key 就会泄露，导致配额被盗用或预算耗尽。</li>
+<li><strong>Ephemeral Token 机制</strong>：车机通过双向认证连接到车厂后端，请求一个仅在短期（如 15 分钟）有效的 Token。Realtime API 使用该 Token 鉴权。即使泄露，攻击窗口也极短。</li>
+</ul>
+</details>
+<details>
+<summary>3. 在架构图中，“Vehicle Control Gateway”处于哪个信任域？它应该信任 Agents SDK 发来的指令吗？(点展开)</summary>
+<p><strong>Hint</strong>: Zero Trust（零信任）原则。</p>
+<p><strong>参考答案</strong>：</p>
+<ul>
+<li><strong>信任域</strong>：它处于高信任域（Vehicle Trust Zone），通常运行在安全性要求较高的 MCU 或网关 SOC 上。</li>
+<li><strong>不应完全信任</strong>：它应将 Agents SDK 视为“不可信源”。即使 Agents SDK 逻辑正确，云端也可能被入侵。因此 Gateway 必须独立校验每条指令的合法性（如参数范围、当前车速限制、权限冲突）。</li>
+</ul>
+</details>
+<h3 id="_2">挑战题</h3>
+<details>
+<summary>4. 架构设计：如果用户在信号极差的地库，语音交互完全不可用，系统应如何实现“无缝降级”？请描述车端与云端的配合流程。(点击展开)</summary>
+<p><strong>Hint</strong>: VAD 本地检测、离线命令词识别、状态同步。</p>
+<p><strong>参考答案</strong>：</p>
+<ol>
+<li><strong>连接状态感知</strong>：Connection Manager 检测到连接断开或丢包率 &gt; 20%。</li>
+<li><strong>路由切换</strong>：音频流不再发往 Realtime API，而是路由至车机本地的轻量级 ASR/NLU 引擎（通常仅支持几百个固定指令）。</li>
+<li><strong>用户感知</strong>：UI 上显示“离线模式”，TTS 切换为本地合成引擎（音色可能略有不同）。</li>
+<li><strong>功能限制</strong>：仅响应车控指令（“打开车窗”），对于 RAG 问答或闲聊，反馈“网络不可用”。</li>
+<li><strong>恢复同步</strong>：当网络恢复，本地引擎将离线期间发生的车控状态变更（如“车窗已开”）作为一个 <code>state_update</code> 事件发送给云端 Session，更新上下文。</li>
+</ol>
+</details>
+<details>
+<summary>5. 思考题：Realtime API 的“Function Calling”并不直接执行代码。在车控场景中，这种“意图”到“执行”的分离有什么架构上的优势？(点击展开)</summary>
+<p><strong>Hint</strong>: 解耦、硬件差异化、安全拦截。</p>
+<p><strong>参考答案</strong>：</p>
+<ol>
+<li><strong>硬件抽象（HAL）</strong>：云端模型只需要输出通用的 <code>set_temperature(24)</code>，不需要关心这辆车是特斯拉还是比亚迪，也不需要关心底层 CAN ID 是多少。具体的协议转换由车端或 Agents SDK 适配层完成。</li>
+<li><strong>安全拦截</strong>：因为模型不直接执行，我们可以在“意图”生成后、“执行”发生前插入一层安全校验逻辑（Human-in-the-loop 或规则引擎）。</li>
+<li><strong>可测试性</strong>：我们可以单独测试模型的意图识别准确率，而不需要连接真实的车辆硬件。</li>
+</ol>
+</details>
+<details>
+<summary>6. 多模态挑战：当用户指着窗外说“那是什么楼”时，系统架构如何保证摄像头刚好拍到了用户指的地方，且模型能理解？(点击展开)</summary>
+<p><strong>Hint</strong>: 时间同步、多摄融合、视线追踪（Gaze Tracking）。</p>
+<p><strong>参考答案</strong>：</p>
+<ol>
+<li><strong>触发机制</strong>：DMS 摄像头检测到用户有“手指指向”动作或 VAD 检测到代词“那”、“这个”。</li>
+<li><strong>空间对齐</strong>：通过 DMS 计算用户视线向量（Gaze Vector）和手指向量。</li>
+<li><strong>摄像头选择</strong>：根据向量方向，Perception Adapter 自动选择最匹配的外部摄像头（前视、侧前或侧后）。</li>
+<li><strong>时间同步</strong>：由于视频处理有延迟，需要有一个 Ring Buffer 缓存最近几秒的视频帧。系统回溯到用户说“那”的时间戳对应的视频帧。</li>
+<li><strong>发送与推理</strong>：裁剪出视线区域（ROI），发送给 Realtime API 进行视觉问答。</li>
+</ol>
+</details>
+<hr />
+<h2 id="5-gotchas">5. 常见陷阱与错误 (Gotchas)</h2>
+<h3 id="51-echo-leakage">5.1 "幻听" 与回声泄漏 (Echo Leakage)</h3>
+<ul>
+<li><strong>现象</strong>：AI 刚说完半句话，突然自己打断自己，或者不断重复“对不起”、“请再说一遍”。</li>
+<li><strong>原因</strong>：AEC（回声消除）失效。车机播放 AI 的声音被麦克风录入，又传回给了 Realtime API。模型把自己的声音当成了用户的插话。</li>
+<li><strong>调试技巧</strong>：<ul>
+<li>检查 <code>Server VAD</code> 事件日志。如果在 AI 说话期间 VAD 频繁触发，说明 AEC 有问题。</li>
+<li>在车端强制启用硬件 AEC（DSP）。</li>
+<li>在 Realtime API 侧使用 <code>conversation.item.truncate</code> 事件来精确处理打断逻辑，而不是仅仅依赖音频流。</li>
+</ul>
+</li>
+</ul>
+<h3 id="52-race-conditions">5.2 状态竞争 (Race Conditions)</h3>
+<ul>
+<li><strong>现象</strong>：用户说“打开车窗，哦不对，关上”。车窗先打开了一半，然后卡住，最后也没关上。</li>
+<li><strong>原因</strong>：两条指令几乎同时发出。<code>open_window</code> 工具调用正在执行，<code>close_window</code> 紧随其后。车端硬件可能无法处理这种快速反转。</li>
+<li><strong>设计建议</strong>：<ul>
+<li><strong>指令队列</strong>：在车控网关实现一个指令队列（FIFO）。</li>
+<li><strong>互斥锁</strong>：同一执行器（如左前窗电机）在同一时间只能被一个任务占用。</li>
+<li><strong>原子化</strong>：Agent 逻辑应具备“最新指令优先”原则，收到新指令时尝试取消旧指令（Cancel Token）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="53-context-overflow">5.3 上下文爆炸 (Context Overflow)</h3>
+<ul>
+<li><strong>现象</strong>：对话进行十分钟后，响应越来越慢，最终报错。</li>
+<li><strong>原因</strong>：车舱内产生了大量的 Perception Event（如 DMS 每秒上报疲劳度）或工具调用日志，填满了 Context Window。</li>
+<li><strong>设计建议</strong>：<ul>
+<li><strong>定期摘要</strong>：Agents SDK 应后台定期对历史对话进行摘要（Summarization）。</li>
+<li><strong>事件过滤</strong>：不要把每秒的“车速=80,81,80...”都发给模型。仅发送显著变化或应答需要的快照。</li>
+<li><strong>Ephemeral Events</strong>：将感知事件标记为“瞬时”，在下一轮对话中自动丢弃，不计入长期历史。</li>
+</ul>
+</li>
+</ul>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter2.html" class="nav-link prev">← Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</a><a href="chapter4.html" class="nav-link next">Chapter 4｜Realtime 会话层设计 (Realtime Session Design) →</a></nav>
+        </main>
+    </div>
+</body>
+</html>

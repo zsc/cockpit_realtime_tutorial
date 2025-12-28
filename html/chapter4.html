@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="./">
+    <title>Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/highlight.css">
+    <script src="assets/script.js" defer></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                packages: {'[+]': ['noerrors', 'ams']}
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            },
+            loader: {
+                load: ['[tex]/noerrors', '[tex]/ams']
+            }
+        };
+    </script>
+</head>
+<body>
+    <div class="container">
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h3>目录</h3>
+                <button id="sidebar-toggle" class="sidebar-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-search">
+                <input type="text" id="sidebar-search-input" placeholder="搜索..." autocomplete="off">
+            </div>
+            <div id="tree-container">
+                <ul class="nav-list"><li class=""><a href="index.html">车舱场景语音实时对话机器人设计文档（Realtime + Agents SDK）</a></li><li class=""><a href="chapter1.html">Chapter 1｜范围与需求（Scope & Requirements）</a></li><li class=""><a href="chapter2.html">Chapter 2｜用户体验与对话交互 (UX & Conversation Design)</a></li><li class=""><a href="chapter3.html">Chapter 3｜系统总体架构 (System Architecture)</a></li><li class="active"><a href="chapter4.html">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</a></li><li class=""><a href="CLAUDE.html">Untitled</a></li></ul>
+            </div>
+        </nav>
+        
+        <main class="content">
+            <article>
+                <h1 id="chapter-4realtime-realtime-session-design">Chapter 4｜Realtime 会话层设计 (Realtime Session Design)</h1>
+<h2 id="41">4.1 开篇与目标</h2>
+<p>本章聚焦于<strong>语音实时对话</strong>的核心管道设计。与传统的“ASR（识别）→ NLP（理解）→ TTS（合成）”级联式架构不同，OpenAI Realtime API 提供了一个端到端的、流式的多模态交互环境。在车载场景下，这意味着更低的延迟、更自然的打断（Barge-in）以及听觉与视觉的并发处理。</p>
+<p><strong>本章学习目标</strong>：</p>
+<ol>
+<li>理解并选择适合车载环境的 Realtime API <strong>接入拓扑</strong>（WebRTC vs WebSocket）。</li>
+<li>掌握<strong>会话生命周期管理</strong>，包括鉴权、配置下发与断连恢复。</li>
+<li>设计<strong>音频流处理策略</strong>，重点解决回声消除（AEC）与打断机制。</li>
+<li>设计<strong>多模态注入机制</strong>，协调视觉帧与音频流的同步。</li>
+<li>建立<strong>工具调用（Function Calling）</strong>与实时语音流的协同模式。</li>
+</ol>
+<hr />
+<h2 id="42">4.2 接入架构与连接拓扑</h2>
+<p>在车载环境中，直接从车机端（Client）连接 OpenAI 存在安全隐患（API Key 泄露）和逻辑编排困难。因此，推荐采用 <strong>BFF (Backend for Frontend) Relay 模式</strong>。</p>
+<h3 id="421">4.2.1 架构拓扑选型</h3>
+<p>我们主要通过 <strong>WebSocket</strong> 或 <strong>WebRTC</strong> 进行连接。</p>
+<ul>
+<li><strong>WebSocket (Raw Audio)</strong>: 适合服务端中转，控制力强，便于做日志留存、敏感词过滤和协议转换。</li>
+<li><strong>WebRTC</strong>: 延迟极低，适合即时通讯，但服务端中转实现复杂（需搭建 SFU/MCU 或 TURN），且车载防火墙配置较严。</li>
+</ul>
+<p><strong>Rule-of-Thumb</strong>: <strong>在车端与云端网关之间使用成熟的私有协议或 WebSocket，在云端网关（Relay Server）与 OpenAI 之间使用官方推荐的 WebSocket 链接。</strong> 除非对延迟有极致要求（&lt;300ms 端到端）且网络环境极其优越，否则避免车端直连。</p>
+<h4 id="ascii">架构 ASCII 示意图</h4>
+<div class="codehilite"><pre><span></span><code><span class="o">+--------+</span><span class="w">       </span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="n">Audio</span><span class="o">/</span><span class="n">Events</span><span class="w">      </span><span class="o">+---------+</span><span class="w">       </span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="n">Signed</span><span class="w"> </span><span class="n">WS</span><span class="w">     </span><span class="o">+----------+</span>
+<span class="o">|</span><span class="w">  </span><span class="n">Vehicle</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">&lt;========================&gt;</span><span class="w"> </span><span class="o">|</span><span class="w">  </span><span class="n">Relay</span><span class="w">  </span><span class="o">|</span><span class="w"> </span><span class="o">&lt;====================&gt;</span><span class="w"> </span><span class="o">|</span><span class="w">  </span><span class="n">OpenAI</span><span class="w">  </span><span class="o">|</span>
+<span class="o">|</span><span class="w">  </span><span class="p">(</span><span class="n">Client</span><span class="p">)</span><span class="o">|</span><span class="w">       </span><span class="p">(</span><span class="n">Custom</span><span class="o">/</span><span class="n">WS</span><span class="p">)</span><span class="w">         </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">Server</span><span class="p">)</span><span class="o">|</span><span class="w">                        </span><span class="o">|</span><span class="w"> </span><span class="n">Realtime</span><span class="w"> </span><span class="o">|</span>
+<span class="o">+--------+</span><span class="w">                             </span><span class="o">+---------+</span><span class="w">                        </span><span class="o">+----------+</span>
+<span class="w">    </span><span class="o">|</span><span class="w">                                       </span><span class="o">|</span><span class="w">                                   </span><span class="o">|</span>
+<span class="w">    </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Mic</span><span class="w"> </span><span class="n">Input</span><span class="p">]</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">DSP</span><span class="p">(</span><span class="n">AEC</span><span class="o">/</span><span class="n">NS</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Enc</span><span class="w">     </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Auth</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">Session</span><span class="w"> </span><span class="n">Mgmt</span><span class="p">]</span><span class="w">             </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Model</span><span class="p">]</span>
+<span class="w">    </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Spk</span><span class="w"> </span><span class="n">Output</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">Dec</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">Buffer</span><span class="w">         </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Tool</span><span class="w"> </span><span class="n">Execution</span><span class="w"> </span><span class="p">(</span><span class="n">Car</span><span class="w"> </span><span class="n">Ctrl</span><span class="p">)]</span><span class="w">       </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Audio</span><span class="w"> </span><span class="n">In</span><span class="o">/</span><span class="n">Out</span><span class="p">]</span>
+<span class="w">    </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Screen</span><span class="o">/</span><span class="n">Cam</span><span class="p">]</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Base64</span><span class="o">/</span><span class="n">Binary</span><span class="w">         </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">RAG</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">Knowledge</span><span class="w"> </span><span class="n">Fetch</span><span class="p">]</span><span class="w">           </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Function</span><span class="w"> </span><span class="n">Call</span><span class="p">]</span>
+
+<span class="w">    </span><span class="o">+</span><span class="w">                                       </span><span class="o">+</span><span class="w">                                   </span><span class="o">+</span>
+</code></pre></div>
+
+<h3 id="422">4.2.2 安全鉴权策略</h3>
+<ol>
+<li><strong>车端认证</strong>：车机通过 mTLS 或 OAuth2 令牌连接 Relay Server。</li>
+<li><strong>OpenAI 认证</strong>：Relay Server 持有 <code>OPENAI_API_KEY</code>，该 Key 永不下发到车端。</li>
+<li><strong>会话隔离</strong>：每个 WebSocket 连接对应唯一的 <code>Session ID</code>，连接断开即销毁上下文（除非使用了持久化记忆机制，见 Chapter 5）。</li>
+</ol>
+<hr />
+<h2 id="43-lifecycle">4.3 会生命周期管理 (Lifecycle)</h2>
+<p>Realtime API 是有状态的。管理好“连接—配置—交互—销毁”的闭环至关重要。</p>
+<h3 id="431-session-update">4.3.1 初始化与配置 (Session Update)</h3>
+<p>连接建立后的第一件事是发送 <code>session.update</code> 事件。</p>
+<ul>
+<li><strong>Voice</strong>: 设置音色（推荐 <code>alloy</code> 或 <code>shimmer</code> 等清晰音色）。</li>
+<li><strong>Instructions</strong>: 注入 System Prompt（角色设定、安全边界）。</li>
+<li><strong>Turn Detection</strong>: 配置 VAD（语音活动检测）。建议开启 <code>server_vad</code> 模式，让模型决定用户何时说完，但也需允许车端强制发送“截断信号”。</li>
+<li><strong>Tools</strong>: 下发当前车辆可用的工具定义（根据车型配置动态生成）。</li>
+</ul>
+<h3 id="432-event-loop">4.3.2 事件流驱动 (Event Loop)</h3>
+<p>Realtime API 完全由事件驱动。Relay Server 需维护一个事件泵。</p>
+<ul>
+<li>
+<p><strong>上行（To OpenAI）</strong>：</p>
+<ul>
+<li><code>input_audio_buffer.append</code>: 持续发送音频块（Base64 PCM）。</li>
+<li><code>input_audio_buffer.commit</code>: 强制提交（当车端 VAD 判定说话结束时）。</li>
+<li><code>conversation.item.create</code>: 注入非语音消息（如：系统提示“前方路况拥堵”或 RAG 检索到的文本）。</li>
+</ul>
+</li>
+<li>
+<p><strong>下行（From OpenAI）</strong>：</p>
+<ul>
+<li><code>response.audio.delta</code>: 音频流片段（需即时转发给车端播放）。</li>
+<li><code>response.audio_transcript.done</code>: 文本实录（用于在屏幕显示字幕）。</li>
+<li><code>response.function_call_arguments.done</code>: 工具调用请求。</li>
+</ul>
+</li>
+</ul>
+<h3 id="433">4.3.3 断连与恢复</h3>
+<p><strong>场景</strong>：车辆驶入隧道，网络中断 5 秒。
+<strong>策略</strong>：</p>
+<ol>
+<li><strong>车端</strong>：暂停录音上传，提示音（可选），尝试重连。</li>
+<li><strong>Relay 端</strong>：检测到车端断开，保持与 OpenAI 连接一段超时时间（如 60s）。</li>
+<li><strong>恢复</strong>：车端重连后，Relay 下发最后一条未播放完的音频，或发送 <code>response.cancel</code> 重置状态，避免播放过时的回复。</li>
+</ol>
+<hr />
+<h2 id="44-barge-in">4.4 音频链路与打断机制 (Barge-in)</h2>
+<p>车载环境最大的痛点是<strong>噪声</strong>和<strong>回声</strong>。Realtime API 的“全双工”特性要求极高的音频处理量。</p>
+<h3 id="441-aec">4.4.1 AEC (回声消除)</h3>
+<p>如果车机播放 AI 的声音被麦克风录入并传回 OpenAI，模型会听到自己说话，导致死循环或“鬼畜”。</p>
+<ul>
+<li><strong>硬件 AEC</strong>：依赖车机 DSP 芯片（首选）。</li>
+<li><strong>软件 AEC</strong>：如果硬件不支持，需在 Android/Linux 音频 HAL 层集成 WebRTC 的 AEC 模块。</li>
+<li><strong>Gotcha</strong>：<strong>绝对不要</strong>把 AI 的回复音频作为 <code>input_audio_buffer</code> 发回给 OpenAI。</li>
+</ul>
+<h3 id="442-interruption-handling">4.4.2 打断策略 (Interruption Handling)</h3>
+<p>用户在 AI 说话时插嘴，AI 必须立即停止。</p>
+<p><strong>流程设计</strong>：</p>
+<ol>
+<li><strong>检测</strong>：车端 VAD 检测到用户人声（User Speech Start）。</li>
+<li><strong>截断</strong>：<ul>
+<li>车端立即停止 TTS 播放队列，清空缓冲区。</li>
+<li>车端发送 <code>input_audio_buffer.clear</code> 事件给 Relay。</li>
+<li>Relay 向 OpenAI 发送 <code>response.cancel</code> 事件。</li>
+</ul>
+</li>
+<li><strong>对话</strong>：车端开始流式发送新的用户语音。</li>
+</ol>
+<p><strong>ASCII 流程图：打断</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="n">Time</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">User</span><span class="w"> </span><span class="p">(</span><span class="n">Car</span><span class="p">)</span><span class="w">              </span><span class="o">|</span><span class="w"> </span><span class="n">Relay</span><span class="w"> </span><span class="n">Server</span><span class="w">          </span><span class="o">|</span><span class="w"> </span><span class="n">OpenAI</span>
+<span class="o">-----+-------------------------+-----------------------+----------------</span>
+<span class="n">t0</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Listening</span><span class="p">]</span><span class="w">             </span><span class="o">|</span><span class="w">                       </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Generates</span><span class="w"> </span><span class="n">Audio</span><span class="w"> </span><span class="n">A</span><span class="p">...]</span>
+<span class="n">t1</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="o">&lt;</span><span class="n">Plays</span><span class="w"> </span><span class="n">Audio</span><span class="w"> </span><span class="n">A</span><span class="w"> </span><span class="n">part</span><span class="w"> </span><span class="mi">1</span><span class="o">&gt;</span><span class="w">  </span><span class="o">|</span><span class="w"> </span><span class="o">&lt;</span><span class="n">Fwd</span><span class="w"> </span><span class="n">Audio</span><span class="w"> </span><span class="n">A</span><span class="w"> </span><span class="n">part</span><span class="w"> </span><span class="mi">2</span><span class="o">&gt;</span><span class="w">  </span><span class="o">|</span>
+<span class="n">t2</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="s">&quot;Hey wait!&quot;</span><span class="w"> </span><span class="p">(</span><span class="n">Talks</span><span class="p">)</span><span class="w">     </span><span class="o">|</span><span class="w">                       </span><span class="o">|</span>
+<span class="n">t3</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Stop</span><span class="w"> </span><span class="n">Playback</span><span class="o">!</span><span class="p">]</span><span class="w">        </span><span class="o">|</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">input_audio</span><span class="p">.</span><span class="n">append</span><span class="w"> </span><span class="o">|</span>
+<span class="n">t4</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">VAD</span><span class="w"> </span><span class="n">Triggered</span><span class="w">        </span><span class="o">|</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">response</span><span class="p">.</span><span class="n">cancel</span><span class="w">    </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Stop</span><span class="w"> </span><span class="n">Generation</span><span class="p">]</span>
+<span class="n">t5</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">input_audio</span><span class="p">.</span><span class="n">append</span><span class="w">   </span><span class="o">|</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">input_audio</span><span class="p">.</span><span class="n">commit</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">[</span><span class="n">Process</span><span class="w"> </span><span class="n">New</span><span class="w"> </span><span class="n">Audio</span><span class="p">]</span>
+</code></pre></div>
+
+<hr />
+<h2 id="45-multimodal-injection">4.5 多模态输入注入 (Multimodal Injection)</h2>
+<p>Realtime API 支持图像输入。车载场景下，摄像头（DMS/OMS）和屏幕内容是关键上下文。</p>
+<h3 id="451">4.5.1 图像采样策略</h3>
+<p>不要发送视频流！带宽和 Token 消耗都扛不住。</p>
+<ul>
+<li><strong>按需触发</strong>：用户问“我看那个灯是什么意思？”时，截取当前帧。</li>
+<li><strong>低频采样</strong>：每 10 秒采样一次低分辨率关键帧（如有变化），更新上下文。</li>
+</ul>
+<h3 id="452">4.5.2 注入协议</h3>
+<p>使用 <code>conversation.item.create</code> 消息，类型为 <code>message</code>，内容包含 <code>type: "image_url"</code> (Base64)。</p>
+<p><strong>图像预处理 Rule-of-Thumb</strong>：</p>
+<ul>
+<li><strong>分辨率</strong>：缩放到 512x512 或更低，除非需要看清仪表盘微小文字。</li>
+<li><strong>灰度化</strong>：DMS（红外）本身是黑白的，无需转换。</li>
+<li><strong>裁剪</strong>：只发送 ROI（感兴趣区域），例如只裁剪仪表盘区域发送，保护隐私并减少数据量。</li>
+</ul>
+<hr />
+<h2 id="46">4.6 工具调用与语音流的协调</h2>
+<p>当 Realtime 模型决定调用工具（如 <code>set_seat_heater</code>）时，音频流会发生什么？</p>
+<h3 id="461-a-asynchronous">4.6.1 模式 A：边做边说 (Asynchronous)</h3>
+<ul>
+<li>模型输出音频：“好的，正在为您打开座椅加热...”</li>
+<li>同时下发 <code>function_call</code>。</li>
+<li>Relay 执行车控指令。</li>
+<li>执行完毕后，Relay 将 <code>function_call_output</code> 发回模型。</li>
+<li>模型根据结果补充：“已开启。”</li>
+</ul>
+<h3 id="462-b-blocking">4.6.2 模式 B：先做后说 (Blocking)</h3>
+<ul>
+<li>模型停止生成音频。</li>
+<li>等待 Relay 执行结果。</li>
+<li>Relay 返回结果。</li>
+<li>模型生成：“座椅加热已启。”</li>
+<li><em>缺点</em>：会有静默期（Dead Air）。建议在客户端播放“处理音效”或“正在思考”的动效。</li>
+</ul>
+<h3 id="463">4.6.3 工具回执注入</h3>
+<p>工具执行的结果（JSON）需要转化为自然语言反馈。</p>
+<ul>
+<li><strong>Strategy</strong>：将工具返回结果作为 <code>function_call_output</code> item 提交，然后触发 <code>response.create</code>，模型会自动将 JSON 结果总结为语音回复。</li>
+</ul>
+<hr />
+<h2 id="47-gotchas">4.7 常见陷阱与错误 (Gotchas)</h2>
+<p>| 陷阱类型 | 描述 | 解决方案 |</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">陷阱类型</th>
+<th style="text-align: left;">描述</th>
+<th style="text-align: left;">解决方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>自激啸叫 (Audio Loop)</strong></td>
+<td style="text-align: left;">模型听到了自己刚才说的话，误以为是用户在重复，导致无限复读。</td>
+<td style="text-align: left;">严格检查 AEC 效果；在客户端实现“AI 说话时麦克风静音”作为保底（但这会牺牲打断体验，仅作降级）。</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>VAD 过于敏感</strong></td>
+<td style="text-align: left;">风噪、胎噪被误认为是人声，导致模型频繁被打断或胡言乱语。</td>
+<td style="text-align: left;">调高 VAD 阈值；在车端做本地预处理（RNNoise）；在 System Prompt 强调“忽略背景噪音”。</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>工死锁</strong></td>
+<td style="text-align: left;">模型调用工具后，Relay 迟迟不返回 Output，导致会话卡死。</td>
+<td style="text-align: left;">设置工具执行超时（如 3s）；超时后自动返回 "Status: Timeout" 给模型，让模型以此回复用户。</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Token 爆炸</strong></td>
+<td style="text-align: left;">长期会话积累了大量历史音频和文本，导致延迟增加、费用飙升。</td>
+<td style="text-align: left;">实现 Context Window 滚动机制；每隔 N 轮对话，将旧的历史项从 <code>session</code> 中剔除或总结。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="48">4.8 本章小结</h2>
+<p>本章构建了车舱语音助手的“实时传输层”。核心要点包括：</p>
+<ol>
+<li><strong>架构</strong>：采用 Client -&gt; Relay -&gt; OpenAI 的三层架构保障安全与逻辑编排。</li>
+<li><strong>音频</strong>：AEC 是基础，Clear Buffer + Cancel Response 是实现打断的关键组合。</li>
+<li><strong>多模态</strong>：图像应按需、采样、裁剪后注入，避免流式上传。</li>
+<li><strong>状态</strong>：Relay Server 必须维护会话状态机，处理工具调用的异步回调。</li>
+</ol>
+<hr />
+<h2 id="49">4.9 练习题</h2>
+<details>
+<summary><strong>基础题 1：连接协议选择</strong></summary>
+<p><strong>题目</strong>：为什么在车端不建议直接持有 OpenAI API Key 并建立 WebRTC 连接？列出至少两点原因。</p>
+<p><strong>提示</strong>：考虑安全性和业务逻辑位置。</p>
+<p><strong>参考答案</strong>：</p>
+<ol>
+<li><strong>安全性</strong>：APK/二进制文件容易被反编译，导致主 API Key 泄露，带来巨额资损。</li>
+<li><strong>业务编排</strong>：车控逻辑、RAG 检索通常位于私有云后端。如果车端直连 OpenAI，工具调用（Function Call）需要车端处理，这会导致车端逻辑过于厚重，且难以进行敏感操作审计（Audit）。</li>
+</ol>
+</details>
+<details>
+<summary><strong>基础题 2：打断机制实现</strong></summary>
+<p><strong>题目</strong>：当用户打断 AI 说话时，为了最低延迟停止 AI 的声音，车端应该先做什么？是先等待服务器确认，还是先本地停止？</p>
+<p><strong>提示</strong>：UX 优先级。</p>
+<p><strong>参考答案</strong>：
+<strong>先本地停止</strong>。
+车端检测到打断意图后，应立即：</p>
+<ol>
+<li>停止音频播放器的缓冲区读取。</li>
+<li>清空本地未播放的音频缓。</li>
+<li><em>同时</em>向服务器发送 <code>input_audio_buffer.clear</code> 和打断信号。
+不能等待服务器回包才停，否则会有几百毫秒的延迟，用户体验极差。</li>
+</ol>
+</details>
+<details>
+<summary><strong>挑战题 1：多模态上下文同步</strong></summary>
+<p><strong>题目</strong>：用户指着窗外问：“左边那个是什么楼？”。此时系统需要摄像头的图像。请设计一个时序流程，确保图像和语音在时间上是对齐的。如果图像上传慢了 2 秒，会有什么后果？</p>
+<p><strong>提示</strong>：时间戳、事件顺序。</p>
+<p><strong>参考答案</strong>：
+<strong>设计流程</strong>：</p>
+<ol>
+<li>用户说话开始（VAD Start）。</li>
+<li>车端记录此时的时间戳 T0，并触发摄像头抓拍（附带时间戳 T0）。</li>
+<li>音频流持续上传。</li>
+<li>图像在后台压缩、编码。</li>
+<li>
+<p>在用户说话结束（VAD End）提交 <code>input_audio_buffer.commit</code> <strong>之前</strong>，务必通过 <code>conversation.item.create</code> 将图像注入到会话中。或者，在 System Prompt 中设定“如果需要看，请请求截工具”，但这通常太慢。
+<strong>后果</strong>：
+如果图像上传慢了 2 秒，且在音频 Commit 之后才到达，模型处理音频时可能还没看到图，会导致：</p>
+</li>
+<li>
+<p>回答“我没看到您说的是什么”。</p>
+</li>
+<li>或者基于上一帧过期的图像回答（幻觉）。
+<strong>修正策略</strong>：在 Relay 端做一个短时间的“对齐缓冲”，等待图像上传完毕（或超时）后再向 OpenAI 提交 Commit 信号。</li>
+</ol>
+</details>
+<details>
+<summary><strong>挑战题 2：弱网下的工具执行</strong></summary>
+<p><strong>题目</strong>：用户说“打开空调”，指令上传成功，Realtime 模型返回了 <code>function_call</code>。此时车辆进入无信号区。Relay Server 执行了车控指令（通过长连接通道下发给车辆 T-Box），但无法将结果返回给 OpenAI Realtime API（因为连接断了）。请问如何设计恢复流程，避免“空调开了，但 AI 没给反馈”或“AI 以为没开，重试导致重复操作”？</p>
+<p><strong>提示</strong>：幂等性、本地反馈。</p>
+<p><strong>参考答案</strong>：</p>
+<ol>
+<li><strong>幂等性</strong>：车控接口必须设计为幂等的（调用 5 次“开空调”等于调用 1 次）。</li>
+<li><strong>本地反馈</strong>：车端 GUI/音频收到 T-Box 的执行成功信号后，可以直接播放本地的“空调已开启”提示音/UI 弹窗，而不必死等 AI 的语音流。</li>
+<li><strong>状态同步</strong>：网络恢复后，Relay Server 重建 Realtime 会话，并将当前的车辆状态（Context）作为 System Prompt 更新进去，或者作为一条隐藏的 System Message 告诉 AI：“刚才在离线期间，空调已成功开启”。</li>
+</ol>
+</details>
+            </article>
+            
+            <nav class="page-nav"><a href="chapter3.html" class="nav-link prev">← Chapter 3｜系统总体架构 (System Architecture)</a><a href="CLAUDE.html" class="nav-link next">Untitled →</a></nav>
+        </main>
+    </div>
+</body>
+</html>
